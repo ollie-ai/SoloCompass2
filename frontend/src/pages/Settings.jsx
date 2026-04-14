@@ -17,6 +17,10 @@ import ChangePasswordForm from '../components/ChangePasswordForm';
 import SessionsList from '../components/SessionsList';
 import TwoFactorSetup from '../components/TwoFactorSetup';
 import AccountDeletionFlow from '../components/AccountDeletionFlow';
+import PrivacySettingsForm from '../components/PrivacySettingsForm';
+import AppPreferencesForm from '../components/AppPreferencesForm';
+import ProfileCompletenessCard from '../components/ProfileCompletenessCard';
+import TravelPersonaBadge from '../components/TravelPersonaBadge';
 
 const EASE = [0.16, 1, 0.3, 1];
 const cardClass = "glass-card p-6 rounded-3xl border border-base-300/50";
@@ -608,6 +612,14 @@ const Settings = () => {
                             <div className="flex-1 text-center sm:text-left min-w-0">
                               <p className="text-xs font-black text-brand-vibrant uppercase tracking-widest mb-1">Your DNA Vibe</p>
                               <h4 className="text-2xl font-black text-slate-900 capitalize leading-none mb-2">{soloId.travelDna.style}</h4>
+                              <div className="flex flex-wrap gap-2 justify-center sm:justify-start mb-2">
+                                <TravelPersonaBadge
+                                  dominantStyle={soloId.travelDna.style}
+                                  travelPersona={soloId.travelDna.travelPersona}
+                                  size="sm"
+                                  showDescription
+                                />
+                              </div>
                               <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-900 text-white">Social: {soloId.travelDna.socialStyle}</span>
                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-900 text-white">Adventure: {soloId.travelDna.adventureLevel}</span>
@@ -745,6 +757,17 @@ const Settings = () => {
                           </div>
                         </div>
                       </div>
+                    </div>
+                  </div>
+
+                  <div className={cardClass}>
+                    <div className="p-6 border-b border-base-300/50">
+                      <h3 className="text-base font-black text-base-content flex items-center gap-2">
+                        <CheckCircle size={16} className="text-brand-vibrant" /> Profile Completeness
+                      </h3>
+                    </div>
+                    <div className="p-6">
+                      <ProfileCompletenessCard />
                     </div>
                   </div>
 
@@ -1307,6 +1330,28 @@ const Settings = () => {
                       <p className="text-xs text-base-content/40 font-medium mt-4">
                         Your data is retained for the duration of your account. After deletion, all data is permanently removed within 30 days.
                       </p>
+                    </div>
+                  </div>
+
+                  <div className={cardClass}>
+                    <div className="p-5 border-b border-base-300/50">
+                      <h3 className="text-base font-black text-base-content flex items-center gap-2">
+                        <Eye size={16} className="text-brand-vibrant" /> Profile Privacy Controls
+                      </h3>
+                    </div>
+                    <div className="p-5">
+                      <PrivacySettingsForm />
+                    </div>
+                  </div>
+
+                  <div className={cardClass}>
+                    <div className="p-5 border-b border-base-300/50">
+                      <h3 className="text-base font-black text-base-content flex items-center gap-2">
+                        <Globe size={16} className="text-brand-vibrant" /> App Preferences
+                      </h3>
+                    </div>
+                    <div className="p-5">
+                      <AppPreferencesForm />
                     </div>
                   </div>
 

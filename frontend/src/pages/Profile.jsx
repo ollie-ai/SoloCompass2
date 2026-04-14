@@ -4,6 +4,8 @@ import { useAuthStore } from '../stores/authStore';
 import { Edit, MapPin, Globe, Calendar } from 'lucide-react';
 import api from '../lib/api';
 import TravelStatsWidget from '../components/TravelStatsWidget';
+import TravelPersonaBadge from '../components/TravelPersonaBadge';
+import ProfileCompletenessCard from '../components/ProfileCompletenessCard';
 
 export default function Profile() {
   const { user } = useAuthStore();
@@ -60,6 +62,17 @@ export default function Profile() {
               <span className="badge badge-outline">{profile.solo_travel_experience} solo traveller</span>
             </div>
           )}
+          {profile?.travel_style && (
+            <div className="mt-3">
+              <TravelPersonaBadge dominantStyle={profile.travel_style} size="sm" showDescription />
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="card bg-base-100 shadow-sm mb-6">
+        <div className="card-body">
+          <h2 className="card-title text-base">Profile Completeness</h2>
+          <ProfileCompletenessCard />
         </div>
       </div>
       <TravelStatsWidget />

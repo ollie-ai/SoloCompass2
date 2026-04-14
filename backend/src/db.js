@@ -2149,6 +2149,8 @@ async function runMigrations() {
           read_time_minutes INTEGER DEFAULT 5,
           is_published BOOLEAN DEFAULT true,
           view_count INTEGER DEFAULT 0,
+          version INTEGER DEFAULT 1,
+          published_at TIMESTAMPTZ,
           created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
         )
@@ -2165,6 +2167,8 @@ async function runMigrations() {
           difficulty TEXT DEFAULT 'beginner' CHECK(difficulty IN ('beginner', 'intermediate', 'advanced')),
           is_published BOOLEAN DEFAULT true,
           helpful_count INTEGER DEFAULT 0,
+          version INTEGER DEFAULT 1,
+          published_at TIMESTAMPTZ,
           created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
         )

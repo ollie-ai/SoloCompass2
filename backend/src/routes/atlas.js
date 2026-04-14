@@ -4,6 +4,8 @@ import db from '../db.js';
 import logger from '../services/logger.js';
 import { callAzureOpenAI, getFallbackResponse } from '../services/aiService.js';
 import { requireFeature, checkAILimits, FEATURES } from '../middleware/paywall.js';
+import { sendError } from '../lib/errorCodes.js';
+import { atlasLimiter } from '../middleware/rateLimiters.js';
 
 const router = express.Router();
 
@@ -163,9 +165,9 @@ async function getConversationMessages(conversationId, limit = 10) {
 }
 
 // ─── POST /api/v1/atlas/chat (SSE streaming) ─────────────────────────────────
-router.post('/chat', authenticate, requireFeature(FEATURES.AI_CHAT), checkAILimits, async (req, res) => {
+router.post('/chat', authenticate, requireFeature(FEATURES.AI_CHAT), checkAILimits, atlasLimiter, async (req, res) => {
   const { message, conversationId, context } = req.body;
-  if (!message) return res.status(400).json({ error: { code: 'SC-ERR-001', message: 'Message is required' } });
+  if (!message) return sendError(res, 'SC_ERR_400', 'Message is required');
 
   // Set SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
@@ -391,7 +393,7 @@ router.post('/chat', authenticate, requireFeature(FEATURES.AI_CHAT), checkAILimi
 });
 
 // ─── GET /api/v1/atlas/conversations ─────────────────────────────────────────
-router.get('/conversations', authenticate, async (req, res) => {
+router.get('/conversations', authenticate, atlasLimiter, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = Math.min(parseInt(req.query.limit) || 20, 50);
@@ -412,18 +414,18 @@ router.get('/conversations', authenticate, async (req, res) => {
     });
   } catch (err) {
     logger.error(`[Atlas] List conversations error: ${err.message}`);
-    res.status(500).json({ success: false, error: { code: 'SC-ERR-500', message: 'Failed to list conversations' } });
+    sendError(res, 'SC_ERR_500', 'Failed to list conversations');
   }
 });
 
 // ─── GET /api/v1/atlas/conversations/:id ─────────────────────────────────────
-router.get('/conversations/:id', authenticate, async (req, res) => {
+router.get('/conversations/:id', authenticate, atlasLimiter, async (req, res) => {
   try {
     const conv = await db.get(
       'SELECT * FROM atlas_conversations WHERE id = ? AND user_id = ?',
       req.params.id, req.userId
     );
-    if (!conv) return res.status(404).json({ success: false, error: { code: 'SC-ERR-404', message: 'Conversation not found' } });
+    if (!conv) return sendError(res, 'SC_ERR_404', 'Conversation not found');
 
     const messages = await db.all(
       `SELECT id, role, content, tool_calls, tokens_used, source, created_at
@@ -434,37 +436,34 @@ router.get('/conversations/:id', authenticate, async (req, res) => {
     res.json({ success: true, data: { ...conv, messages } });
   } catch (err) {
     logger.error(`[Atlas] Get conversation error: ${err.message}`);
-    res.status(500).json({ success: false, error: { code: 'SC-ERR-500', message: 'Failed to get conversation' } });
+    sendError(res, 'SC_ERR_500', 'Failed to get conversation');
   }
 });
 
 // ─── DELETE /api/v1/atlas/conversations/:id ───────────────────────────────────
-router.delete('/conversations/:id', authenticate, async (req, res) => {
+router.delete('/conversations/:id', authenticate, atlasLimiter, async (req, res) => {
   try {
     const conv = await db.get(
       'SELECT id FROM atlas_conversations WHERE id = ? AND user_id = ?',
       req.params.id, req.userId
     );
-    if (!conv) return res.status(404).json({ success: false, error: { code: 'SC-ERR-404', message: 'Conversation not found' } });
+    if (!conv) return sendError(res, 'SC_ERR_404', 'Conversation not found');
 
     await db.run('DELETE FROM atlas_conversations WHERE id = ?', req.params.id);
     res.json({ success: true, data: { deleted: true } });
   } catch (err) {
     logger.error(`[Atlas] Delete conversation error: ${err.message}`);
-    res.status(500).json({ success: false, error: { code: 'SC-ERR-500', message: 'Failed to delete conversation' } });
+    sendError(res, 'SC_ERR_500', 'Failed to delete conversation');
   }
 });
 
 // ─── POST /api/v1/atlas/tools/:toolName ──────────────────────────────────────
-router.post('/tools/:toolName', authenticate, async (req, res) => {
+router.post('/tools/:toolName', authenticate, atlasLimiter, async (req, res) => {
   const { toolName } = req.params;
   const validTools = ATLAS_TOOLS.map(t => t.function.name);
 
   if (!validTools.includes(toolName)) {
-    return res.status(404).json({
-      success: false,
-      error: { code: 'SC-ERR-404', message: `Tool '${toolName}' not found`, available: validTools }
-    });
+    return sendError(res, 'SC_ERR_404', `Tool '${toolName}' not found`, { available: validTools });
   }
 
   try {
@@ -472,12 +471,12 @@ router.post('/tools/:toolName', authenticate, async (req, res) => {
     res.json({ success: true, data: result });
   } catch (err) {
     logger.error(`[Atlas] Tool execution error: ${err.message}`);
-    res.status(500).json({ success: false, error: { code: 'SC-ERR-500', message: 'Tool execution failed' } });
+    sendError(res, 'SC_ERR_500', 'Tool execution failed');
   }
 });
 
 // ─── GET /api/v1/atlas/suggestions ───────────────────────────────────────────
-router.get('/suggestions', authenticate, async (req, res) => {
+router.get('/suggestions', authenticate, atlasLimiter, async (req, res) => {
   try {
     const [activeTrips, recentMessages] = await Promise.all([
       db.all(
@@ -518,7 +517,7 @@ router.get('/suggestions', authenticate, async (req, res) => {
     res.json({ success: true, data: suggestions.slice(0, 8) });
   } catch (err) {
     logger.error(`[Atlas] Suggestions error: ${err.message}`);
-    res.status(500).json({ success: false, error: { code: 'SC-ERR-500', message: 'Failed to get suggestions' } });
+    sendError(res, 'SC_ERR_500', 'Failed to get suggestions');
   }
 });
 

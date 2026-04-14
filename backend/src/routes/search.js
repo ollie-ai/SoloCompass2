@@ -2,6 +2,7 @@ import express from 'express';
 import { authenticate } from '../middleware/auth.js';
 import db from '../db.js';
 import logger from '../services/logger.js';
+import { searchLimiter } from '../middleware/rateLimiters.js';
 
 const router = express.Router();
 
@@ -11,7 +12,7 @@ const SCOPES = ['destinations', 'trips', 'safety', 'journal', 'buddies', 'help',
  * GET /api/search?q=query&scope=all
  * Federated search across multiple content types
  */
-router.get('/', authenticate, async (req, res) => {
+router.get('/', authenticate, searchLimiter, async (req, res) => {
   try {
     const { q, scope = 'all', limit = 5 } = req.query;
 
@@ -168,7 +169,7 @@ router.get('/', authenticate, async (req, res) => {
  * GET /api/search/recent
  * Return the user's last 20 search queries
  */
-router.get('/recent', authenticate, async (req, res) => {
+router.get('/recent', authenticate, searchLimiter, async (req, res) => {
   try {
     const rows = await db.all(
       `SELECT query, searched_at FROM user_recent_searches
@@ -186,7 +187,7 @@ router.get('/recent', authenticate, async (req, res) => {
  * DELETE /api/search/recent
  * Clear the user's recent searches
  */
-router.delete('/recent', authenticate, async (req, res) => {
+router.delete('/recent', authenticate, searchLimiter, async (req, res) => {
   try {
     await db.run(`DELETE FROM user_recent_searches WHERE user_id = ?`, req.userId);
     res.json({ success: true });

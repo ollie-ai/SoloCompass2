@@ -21,6 +21,7 @@ import { calculateSegmentSafetyScore } from '../services/safetyScoringService.js
 import logger from '../services/logger.js';
 import db from '../db.js';
 import { enqueueEvent } from '../services/criticalEventQueue.js';
+import { sendError } from '../lib/errorCodes.js';
 
 const router = express.Router();
 
@@ -319,7 +320,7 @@ router.post('/emergency-alert', async (req, res) => {
     });
   } catch (error) {
     logger.error(`[Safety] Emergency alert failed: ${error.message}`);
-    res.status(500).json({ error: 'Failed to trigger emergency protocol' });
+    sendError(res, 'SC_ERR_500', 'Failed to trigger emergency protocol');
   }
 });
 

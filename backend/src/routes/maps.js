@@ -3,11 +3,12 @@ import { authenticate } from '../middleware/auth.js';
 import db from '../db.js';
 import logger from '../services/logger.js';
 import { geocodeAddress } from '../services/placesService.js';
+import { apiLimiter } from '../middleware/rateLimiters.js';
 
 const router = express.Router();
 
 // GET /api/v1/maps/geocode
-router.get('/geocode', authenticate, async (req, res) => {
+router.get('/geocode', authenticate, apiLimiter, async (req, res) => {
   try {
     const { address, q } = req.query;
     const query = address || q;
@@ -22,7 +23,7 @@ router.get('/geocode', authenticate, async (req, res) => {
 });
 
 // GET /api/v1/maps/safety-overlay
-router.get('/safety-overlay', authenticate, async (req, res) => {
+router.get('/safety-overlay', authenticate, apiLimiter, async (req, res) => {
   try {
     const { lat, lng, radius = 50, country } = req.query;
 

@@ -84,11 +84,21 @@ export default function GlobalSearch({ isOpen: isOpenProp, onClose }) {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [open, handleClose]);
 
-  // Load recent searches on open
+  // Load recent searches on open — try backend first, fall back to localStorage
   useEffect(() => {
     if (open) {
-      setRecentSearches(getRecentSearches());
       setTimeout(() => inputRef.current?.focus(), 50);
+      // Try to load from API (persisted across devices)
+      api.get('/search/recent')
+        .then(res => {
+          const rows = res.data?.data || [];
+          if (rows.length) {
+            setRecentSearches(rows.map(r => r.query));
+          } else {
+            setRecentSearches(getRecentSearches());
+          }
+        })
+        .catch(() => setRecentSearches(getRecentSearches()));
     }
   }, [open]);
 
@@ -104,8 +114,15 @@ export default function GlobalSearch({ isOpen: isOpenProp, onClose }) {
       setLoading(true);
       try {
         const res = await api.get('/search', { params: { q: query.trim(), scope: 'all' } });
-        const data = res.data?.results || res.data || [];
-        setResults(Array.isArray(data) ? data : []);
+        // API returns { results: { destinations: [...], trips: [...], ... } }
+        const raw = res.data?.data?.results || res.data?.results || res.data || {};
+        // Normalise: if it's already a flat array keep it, otherwise flatten object
+        if (Array.isArray(raw)) {
+          setResults(raw);
+        } else {
+          const flat = Object.values(raw).flat();
+          setResults(flat);
+        }
       } catch {
         setResults([]);
       } finally {
@@ -116,9 +133,8 @@ export default function GlobalSearch({ isOpen: isOpenProp, onClose }) {
     return () => clearTimeout(debounceRef.current);
   }, [query]);
 
-  const flatResults = results.flatMap((group) =>
-    (group.items || []).map(item => ({ ...item, _scope: group.scope, _icon: group.icon }))
-  );
+  // Results are now a flat array — no extra flatMap needed
+  const flatResults = results;
 
   const handleSelect = (item) => {
     addRecentSearch(query || item.title || item.name || '');

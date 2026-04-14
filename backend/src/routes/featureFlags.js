@@ -3,11 +3,12 @@ import { authenticate } from '../middleware/auth.js';
 import db from '../db.js';
 import logger from '../services/logger.js';
 import { evaluateFlag, getAllFlags } from '../services/featureFlagService.js';
+import { apiLimiter } from '../middleware/rateLimiters.js';
 
 const router = express.Router();
 
 // GET /api/v1/feature-flags - Get all flags evaluated for current user
-router.get('/', authenticate, async (req, res) => {
+router.get('/', authenticate, apiLimiter, async (req, res) => {
   try {
     const user = await db.get('SELECT subscription_tier FROM users WHERE id = ?', req.userId);
     const tier = user?.subscription_tier || 'explorer';
@@ -26,7 +27,7 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 // GET /api/v1/feature-flags/:key - Evaluate a single flag
-router.get('/:key', authenticate, async (req, res) => {
+router.get('/:key', authenticate, apiLimiter, async (req, res) => {
   try {
     const user = await db.get('SELECT subscription_tier FROM users WHERE id = ?', req.userId);
     const tier = user?.subscription_tier || 'explorer';

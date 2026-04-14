@@ -1570,9 +1570,18 @@ async function initializeDatabase() {
     }
 
     // Create trip_places view as spec-compliant alias for the places table
+    // Only create view if no trip_places table already exists (e.g. from add_trip_data.sql migration)
     try {
       await p.query(`
-        CREATE OR REPLACE VIEW trip_places AS SELECT * FROM places;
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'trip_places' AND table_type = 'BASE TABLE'
+          ) THEN
+            EXECUTE 'CREATE OR REPLACE VIEW trip_places AS SELECT * FROM places';
+          END IF;
+        END $$;
       `);
     } catch (migErr) {
       logger.warn('[DB] trip_places view note:', migErr.message);

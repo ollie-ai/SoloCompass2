@@ -7,10 +7,15 @@ on:
     branches: ['**']
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   lint-build:
     name: Lint & Vite Build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: frontend
@@ -40,6 +45,8 @@ jobs:
   audit:
     name: npm audit
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: frontend
@@ -63,6 +70,8 @@ jobs:
   lighthouse:
     name: Lighthouse CI
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: [lint-build]
     steps:
       - name: Checkout
@@ -96,6 +105,8 @@ jobs:
   license-check:
     name: License Checker
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -115,6 +126,9 @@ jobs:
   deploy-vercel:
     name: Deploy to Vercel
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     needs: [lint-build, audit]
     if: github.event_name == 'push'
     steps:

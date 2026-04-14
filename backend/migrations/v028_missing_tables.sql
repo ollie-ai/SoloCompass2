@@ -300,10 +300,17 @@ UPDATE destinations
 SET cost_level = budget_level
 WHERE cost_level IS NULL AND budget_level IS NOT NULL;
 
--- ============================================================
 -- trip_places view (spec-compliant alias for places table)
--- ============================================================
-CREATE OR REPLACE VIEW trip_places AS SELECT * FROM places;
+-- Only created if a trip_places base table does not already exist
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'trip_places' AND table_type = 'BASE TABLE'
+  ) THEN
+    EXECUTE 'CREATE OR REPLACE VIEW trip_places AS SELECT * FROM places';
+  END IF;
+END $$;
 
 -- ============================================================
 -- Indexes for new tables

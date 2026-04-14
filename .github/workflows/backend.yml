@@ -7,10 +7,15 @@ on:
     branches: ['**']
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Jest Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: backend
@@ -37,6 +42,8 @@ jobs:
   audit:
     name: npm audit
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: backend
@@ -60,6 +67,8 @@ jobs:
   docker:
     name: Docker Build & Push
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: [test, audit]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
@@ -89,6 +98,7 @@ jobs:
   deploy-render:
     name: Deploy to Render
     runs-on: ubuntu-latest
+    permissions: {}
     needs: [docker]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:

@@ -146,14 +146,14 @@ router.post('/register', [
     const isVerified = process.env.NODE_ENV === 'development' ? true : false;
     
     const result = await db.run(
-      'INSERT INTO users (email, password, name, role, is_verified, verification_token) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO users (email, password, name, role, email_verified, verification_token) VALUES (?, ?, ?, ?, ?, ?)',
       email, hashedPassword, name || null, 'user', isVerified, verificationToken
     );
 
     const userId = result.lastInsertRowid;
     
     // Fetch user for token generation - explicitly select only needed columns to prevent exposing sensitive data
-    const user = await db.get('SELECT id, email, name, role, is_verified, is_premium, subscription_tier, premium_expires_at, created_at, theme_preference, admin_level FROM users WHERE id = ?', userId);
+    const user = await db.get('SELECT id, email, name, role, email_verified, is_premium, subscription_tier, premium_expires_at, created_at, theme_preference, admin_level FROM users WHERE id = ?', userId);
     const token = generateToken({ id: user.id, email: user.email, role: user.role });
     const refreshToken = generateRefreshToken({ id: user.id, email: user.email, role: user.role });
     const sessionId = uuidv4();
@@ -219,7 +219,7 @@ router.post('/login', [
     const { email, password } = req.body;
     const ipAddress = req.ip || req.connection?.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
 
-    const user = await db.get('SELECT id, email, password, name, role, is_verified, is_premium, subscription_tier, premium_expires_at, failed_attempts, locked_until, admin_level FROM users WHERE email = ?', email); // FIXED: was SELECT * which exposed sensitive fields
+    const user = await db.get('SELECT id, email, password, name, role, email_verified, is_premium, subscription_tier, premium_expires_at, failed_attempts, locked_until, admin_level FROM users WHERE email = ?', email); // FIXED: was SELECT * which exposed sensitive fields
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -266,7 +266,7 @@ router.post('/login', [
       await db.run('UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ?', user.id);
     }
 
-    if (!user.is_verified && user.role !== 'admin') {
+    if (!user.email_verified && user.role !== 'admin') {
       return res.status(401).json({
         success: false,
         error: { code: 'EMAIL_NOT_VERIFIED', message: 'Please verify your email address before logging in.' }
@@ -501,7 +501,7 @@ router.get('/me', async (req, res) => {
     }
 
     const decoded = jwt.verify(token, getSecret());
-    const user = await db.get('SELECT id, email, name, role, is_verified, is_premium, subscription_tier, premium_expires_at, created_at, theme_preference, admin_level FROM users WHERE id = ?', decoded.userId);
+    const user = await db.get('SELECT id, email, name, role, email_verified, is_premium, subscription_tier, premium_expires_at, created_at, theme_preference, admin_level FROM users WHERE id = ?', decoded.userId);
 
     if (!user) {
       return res.status(401).json({
@@ -512,8 +512,8 @@ router.get('/me', async (req, res) => {
 
     user.admin_level = user.admin_level || 'support';
 
-    // Map is_verified to emailVerified for frontend compatibility
-    user.emailVerified = !!user.is_verified;
+    // Map email_verified to emailVerified for frontend compatibility
+    user.emailVerified = !!user.email_verified;
 
     // Check quiz status for onboarding flow
     const quiz = await db.get('SELECT id FROM quiz_responses WHERE user_id = ? AND result IS NOT NULL', user.id);
@@ -709,14 +709,14 @@ router.post('/resend-verification', [
 ], handleValidationErrors, async (req, res) => {
   try {
     const { email } = req.body;
-    const user = await db.get('SELECT id, is_verified, verification_token FROM users WHERE email = ?', email);
+    const user = await db.get('SELECT id, email_verified, verification_token FROM users WHERE email = ?', email);
 
     if (!user) {
       // Don't reveal if user exists, but say we sent it if they do
       return res.json({ success: true, data: { message: 'If the account exists and is not verified, a new verification email has been sent.' } });
     }
 
-    if (user.is_verified) {
+    if (user.email_verified) {
       return res.status(400).json({
         success: false,
         error: { code: 'ALREADY_VERIFIED', message: 'Account is already verified' }
@@ -748,7 +748,7 @@ router.post('/magic-link', [
 ], handleValidationErrors, async (req, res) => {
   try {
     const { email } = req.body;
-    const user = await db.get('SELECT id, email, name, is_verified FROM users WHERE email = ?', email);
+    const user = await db.get('SELECT id, email, name, email_verified FROM users WHERE email = ?', email);
     
     // Always return success to avoid email enumeration
     if (!user) {
@@ -804,7 +804,7 @@ router.post('/magic-link/verify', async (req, res) => {
     await db.run('UPDATE magic_link_tokens SET used = true WHERE id = ?', record.id);
     
     // Ensure email is verified
-    await db.run('UPDATE users SET is_verified = true WHERE id = ?', record.user_id);
+    await db.run('UPDATE users SET email_verified = true WHERE id = ?', record.user_id);
 
     const user = { id: record.uid, email: record.email, name: record.name, role: record.role, is_premium: record.is_premium, subscription_tier: record.subscription_tier, admin_level: record.admin_level };
     
@@ -848,7 +848,7 @@ router.get('/verify', async (req, res) => {
       error: { code: 'INVALID_TOKEN', message: 'Invalid or expired verification token' }
     });
 
-    await db.run('UPDATE users SET is_verified = true, verification_token = NULL WHERE id = ?', user.id);
+    await db.run('UPDATE users SET email_verified = true, verification_token = NULL WHERE id = ?', user.id);
 
     // Send Welcome Email now that they are verified
     sendWelcomeEmail(user.email, user.name || 'Explorer').catch(err => logger.error(`[Auth] Welcome email failed: ${err.message}`));

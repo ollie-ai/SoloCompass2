@@ -213,7 +213,7 @@ async function initializeDatabase() {
         premium_expires_at TIMESTAMP,
         reset_token TEXT,
         reset_token_expires TIMESTAMP,
-        is_verified BOOLEAN DEFAULT false,
+        email_verified BOOLEAN DEFAULT false,
         verification_token TEXT,
         failed_attempts INTEGER DEFAULT 0,
         locked_until TIMESTAMP,
@@ -2185,6 +2185,91 @@ async function runMigrations() {
       logger.warn('[Migration v029] skipped:', error.message);
     }
     await markMigration('v029_sessions_location_quiz_persona');
+  }
+
+  // --- Migration v030: user_preferences table + onboarding/deletion scheduler columns ---
+  if (!await hasMigration('v030_user_preferences_scheduler_cols')) {
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS user_preferences (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+          language VARCHAR(10) DEFAULT 'en',
+          currency VARCHAR(10) DEFAULT 'USD',
+          units VARCHAR(10) DEFAULT 'metric' CHECK(units IN ('metric', 'imperial')),
+          timezone VARCHAR(60) DEFAULT 'UTC',
+          date_format VARCHAR(20) DEFAULT 'YYYY-MM-DD',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_user_preferences_user_id ON user_preferences(user_id);
+      `);
+      // Add per-field privacy column to profiles
+      await pool.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'privacy_settings') THEN
+            ALTER TABLE profiles ADD COLUMN privacy_settings JSONB DEFAULT '{}';
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'avatar_thumbnail_url') THEN
+            ALTER TABLE profiles ADD COLUMN avatar_thumbnail_url TEXT;
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'avatar_medium_url') THEN
+            ALTER TABLE profiles ADD COLUMN avatar_medium_url TEXT;
+          END IF;
+        END $$;
+      `);
+      // Add scheduler tracking columns to onboarding_state
+      await pool.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'onboarding_state' AND column_name = 're_engagement_sent') THEN
+            ALTER TABLE onboarding_state ADD COLUMN re_engagement_sent BOOLEAN DEFAULT false;
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'onboarding_state' AND column_name = 're_engagement_sent_at') THEN
+            ALTER TABLE onboarding_state ADD COLUMN re_engagement_sent_at TIMESTAMP;
+          END IF;
+        END $$;
+      `);
+      // Add pre-deletion warning columns to account_deletion_requests
+      await pool.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'account_deletion_requests' AND column_name = 'warning_7d_sent') THEN
+            ALTER TABLE account_deletion_requests ADD COLUMN warning_7d_sent BOOLEAN DEFAULT false;
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'account_deletion_requests' AND column_name = 'warning_3d_sent') THEN
+            ALTER TABLE account_deletion_requests ADD COLUMN warning_3d_sent BOOLEAN DEFAULT false;
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'account_deletion_requests' AND column_name = 'warning_1d_sent') THEN
+            ALTER TABLE account_deletion_requests ADD COLUMN warning_1d_sent BOOLEAN DEFAULT false;
+          END IF;
+        END $$;
+      `);
+      logger.info('[Migration v030] user_preferences table + scheduler columns added');
+    } catch (error) {
+      logger.warn('[Migration v030] skipped:', error.message);
+    }
+    await markMigration('v030_user_preferences_scheduler_cols');
+  }
+
+  // --- Migration v031: rename users.is_verified -> email_verified ---
+  if (!await hasMigration('v031_users_email_verified_rename')) {
+    try {
+      await pool.query(`
+        DO $$
+        BEGIN
+          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'is_verified') AND
+             NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'email_verified') THEN
+            ALTER TABLE users RENAME COLUMN is_verified TO email_verified;
+          END IF;
+        END $$;
+      `);
+      logger.info('[Migration v031] users.is_verified renamed to email_verified');
+    } catch (error) {
+      logger.warn('[Migration v031] skipped:', error.message);
+    }
+    await markMigration('v031_users_email_verified_rename');
   }
 
   logger.info('[Migration] All migrations complete');

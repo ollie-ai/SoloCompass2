@@ -10,6 +10,33 @@ import { stripe } from '../services/stripe.js';
 import { supabaseStorage } from '../services/supabaseStorage.js';
 import logger from '../services/logger.js';
 
+// sharp is optional — gracefully degrade if not installed
+let sharp;
+try {
+  const sharpMod = await import('sharp');
+  sharp = sharpMod.default;
+} catch {
+  logger.warn('[Users] sharp not installed — avatar resizing disabled');
+}
+
+const AVATAR_SIZES = [
+  { key: 'thumbnail', size: 50,  suffix: 'thumb' },
+  { key: 'medium',    size: 200, suffix: 'med'   },
+  { key: 'full',      size: 800, suffix: 'full'  },
+];
+
+/**
+ * Resize an image buffer to a given square size via sharp.
+ * Falls back to the original buffer if sharp is unavailable.
+ */
+async function resizeAvatar(buffer, size) {
+  if (!sharp) return buffer;
+  return sharp(buffer)
+    .resize(size, size, { fit: 'cover', position: 'centre' })
+    .webp({ quality: 85 })
+    .toBuffer();
+}
+
 const router = express.Router();
 
 const apiLimiter = rateLimit({
@@ -49,7 +76,7 @@ const avatarUpload = multer({
   },
 });
 
-// PUT /api/users/me/avatar — dedicated avatar upload with size/type validation
+// PUT /api/users/me/avatar — dedicated avatar upload with size/type validation + 3-size resize
 router.put('/me/avatar', uploadLimiter, authenticate, avatarUpload.single('avatar'), async (req, res) => {
   try {
     if (!req.file) {
@@ -57,21 +84,38 @@ router.put('/me/avatar', uploadLimiter, authenticate, avatarUpload.single('avata
     }
 
     const userId = req.user.userId;
-    const ext = req.file.mimetype.split('/')[1].replace('jpeg', 'jpg');
-    const fileName = `avatars/${userId}-${Date.now()}.${ext}`;
+    const ts = Date.now();
 
-    const { fileUrl, error: uploadError } = await supabaseStorage.uploadFile(
-      fileName,
-      req.file.buffer,
-      req.file.mimetype,
-      'avatars'
+    // Upload all 3 sizes in parallel
+    const uploads = await Promise.all(
+      AVATAR_SIZES.map(async ({ key, size, suffix }) => {
+        const resized = await resizeAvatar(req.file.buffer, size);
+        const mime = sharp ? 'image/webp' : req.file.mimetype;
+        const ext = mime.split('/')[1].replace('jpeg', 'jpg');
+        const fileName = `avatars/${userId}-${ts}-${suffix}.${ext}`;
+        const { fileUrl, error: uploadError } = await supabaseStorage.uploadFile(
+          fileName, resized, mime, 'avatars'
+        );
+        if (uploadError) throw new Error(`Upload failed for ${key}: ${uploadError}`);
+        return { key, fileUrl };
+      })
     );
 
-    if (uploadError) throw new Error(uploadError);
+    const urlMap = Object.fromEntries(uploads.map(({ key, fileUrl }) => [key, fileUrl]));
 
-    await db.run('UPDATE profiles SET avatar_url = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?', fileUrl, userId);
+    await db.run(
+      `UPDATE profiles SET avatar_url = $1, avatar_thumbnail_url = $2, avatar_medium_url = $3, updated_at = CURRENT_TIMESTAMP WHERE user_id = $4`,
+      urlMap.full, urlMap.thumbnail, urlMap.medium, userId
+    );
 
-    res.json({ success: true, data: { avatarUrl: fileUrl } });
+    res.json({
+      success: true,
+      data: {
+        avatarUrl: urlMap.full,
+        thumbnailUrl: urlMap.thumbnail,
+        mediumUrl: urlMap.medium,
+      }
+    });
   } catch (err) {
     if (err.message?.includes('Only JPEG')) {
       return res.status(400).json({ success: false, error: { code: 'INVALID_FILE_TYPE', message: err.message } });
@@ -733,6 +777,95 @@ router.post('/me/deactivate', apiLimiter, authenticate, async (req, res) => {
     res.json({ success: true, data: { message: 'Account deactivated. You can reactivate by logging in again.' } });
   } catch (error) {
     logger.error(`[Users] Deactivate failed: ${error.message}`);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } });
+  }
+});
+
+// GET /api/users/me/completeness — profile completeness score for the user's own profile
+router.get('/me/completeness', apiLimiter, authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const [user, profile, quizResult] = await Promise.all([
+      db.get('SELECT name, email FROM users WHERE id = ?', userId),
+      db.get('SELECT bio, avatar_url, home_city, travel_style, interests, phone, pronouns FROM profiles WHERE user_id = ?', userId),
+      db.get('SELECT dominant_style, travel_persona FROM quiz_results WHERE user_id = ? ORDER BY created_at DESC LIMIT 1', userId),
+    ]);
+
+    const steps = [
+      { field: 'name',          label: 'Display name',     weight: 15, value: !!user?.name },
+      { field: 'email',         label: 'Email',             weight: 5,  value: !!user?.email },
+      { field: 'bio',           label: 'Bio',               weight: 10, value: !!(profile?.bio?.trim()) },
+      { field: 'avatar',        label: 'Profile photo',     weight: 20, value: !!profile?.avatar_url },
+      { field: 'home_city',     label: 'Home city',         weight: 10, value: !!profile?.home_city },
+      { field: 'travel_style',  label: 'Travel style',      weight: 10, value: !!profile?.travel_style },
+      { field: 'interests',     label: 'Interests (3+)',    weight: 15, value: (() => { try { return JSON.parse(profile?.interests || '[]').length >= 3; } catch { return false; } })() },
+      { field: 'quiz',          label: 'Travel DNA quiz',   weight: 15, value: !!quizResult?.dominant_style },
+    ];
+
+    const percentage = steps.reduce((acc, s) => acc + (s.value ? s.weight : 0), 0);
+    const missing = steps.filter(s => !s.value).map(s => ({ field: s.field, label: s.label, weight: s.weight }));
+
+    const label = percentage >= 90 ? 'Complete' : percentage >= 60 ? 'Good' : percentage >= 30 ? 'Getting started' : 'Incomplete';
+
+    res.json({
+      success: true,
+      data: { percentage, label, missing, steps: steps.map(({ field, label, weight, value }) => ({ field, label, weight, complete: value })) }
+    });
+  } catch (error) {
+    logger.error(`[Users] Completeness failed: ${error.message}`);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } });
+  }
+});
+
+// GET /api/users/me/privacy — get per-field privacy settings
+router.get('/me/privacy', apiLimiter, authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const profile = await db.get('SELECT privacy_settings FROM profiles WHERE user_id = ?', userId);
+    const defaults = { bio: 'public', home_city: 'public', phone: 'private', interests: 'public', travel_style: 'public', pronouns: 'public' };
+    let settings = defaults;
+    try {
+      if (profile?.privacy_settings) {
+        settings = { ...defaults, ...JSON.parse(profile.privacy_settings) };
+      }
+    } catch { /* keep defaults */ }
+    res.json({ success: true, data: settings });
+  } catch (error) {
+    logger.error(`[Users] Privacy get failed: ${error.message}`);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } });
+  }
+});
+
+// PUT /api/users/me/privacy — update per-field privacy settings
+router.put('/me/privacy', apiLimiter, authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const ALLOWED_FIELDS = new Set(['bio', 'home_city', 'phone', 'interests', 'travel_style', 'pronouns']);
+    const ALLOWED_LEVELS = new Set(['public', 'buddies', 'private']);
+
+    const incoming = req.body || {};
+    const clean = {};
+    for (const [field, level] of Object.entries(incoming)) {
+      if (ALLOWED_FIELDS.has(field) && ALLOWED_LEVELS.has(level)) {
+        clean[field] = level;
+      }
+    }
+
+    // Fetch current settings and merge
+    const profile = await db.get('SELECT privacy_settings FROM profiles WHERE user_id = ?', userId);
+    let current = {};
+    try { if (profile?.privacy_settings) current = JSON.parse(profile.privacy_settings); } catch { /* ignore */ }
+    const updated = { ...current, ...clean };
+
+    await db.run(
+      'UPDATE profiles SET privacy_settings = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2',
+      JSON.stringify(updated), userId
+    );
+
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    logger.error(`[Users] Privacy update failed: ${error.message}`);
     res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } });
   }
 });

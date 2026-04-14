@@ -2,10 +2,12 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import rateLimit from 'express-rate-limit';
+import multer from 'multer';
 import db from '../db.js';
 import { requireAuth, requireAdmin, authenticate } from '../middleware/auth.js';
 import { sanitizeAll } from '../middleware/validate.js';
 import { stripe } from '../services/stripe.js';
+import { supabaseStorage } from '../services/supabaseStorage.js';
 import logger from '../services/logger.js';
 
 const router = express.Router();
@@ -23,6 +25,52 @@ const ALLOWED_PROFILE_FIELDS = [
   'name', 'travel_style', 'bio', 'avatar_url', 'phone', 'home_city', 
   'interests', 'budget_level', 'pace', 'accommodation_type'
 ];
+
+// Avatar upload multer (5MB, JPEG/PNG/WebP only)
+const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const avatarUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    if (ALLOWED_MIME_TYPES.has(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only JPEG, PNG, and WebP images are allowed'), false);
+    }
+  },
+});
+
+// PUT /api/users/me/avatar — dedicated avatar upload with size/type validation
+router.put('/me/avatar', authenticate, avatarUpload.single('avatar'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'No file uploaded' } });
+    }
+
+    const userId = req.user.userId;
+    const ext = req.file.mimetype.split('/')[1].replace('jpeg', 'jpg');
+    const fileName = `avatars/${userId}-${Date.now()}.${ext}`;
+
+    const { fileUrl, error: uploadError } = await supabaseStorage.uploadFile(
+      fileName,
+      req.file.buffer,
+      req.file.mimetype,
+      'avatars'
+    );
+
+    if (uploadError) throw new Error(uploadError);
+
+    await db.run('UPDATE profiles SET avatar_url = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?', fileUrl, userId);
+
+    res.json({ success: true, data: { avatarUrl: fileUrl } });
+  } catch (err) {
+    if (err.message?.includes('Only JPEG')) {
+      return res.status(400).json({ success: false, error: { code: 'INVALID_FILE_TYPE', message: err.message } });
+    }
+    logger.error(`[Users] Avatar upload failed: ${err.message}`);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to upload avatar' } });
+  }
+});
 
 router.get('/', requireAuth, async (req, res) => {
   try {
@@ -270,7 +318,7 @@ router.get('/:id/export', requireAuth, async (req, res) => {
     // 1. User & Profile (single query with JOIN)
     userData.account = await db.prepare(`
       SELECT u.id, u.email, u.name, u.role, u.created_at,
-             p.avatar_url, p.bio, p.phone, p.company, p.website, p.travel_style, p.home_city
+             p.avatar_url, p.bio, p.phone, p.company, p.website, p.travel_style, p.home_city, p.pronouns
       FROM users u
       LEFT JOIN profiles p ON u.id = p.user_id
       WHERE u.id = ?
@@ -331,7 +379,34 @@ router.get('/:id/export', requireAuth, async (req, res) => {
     userData.emergency_contacts = await db.prepare('SELECT id, name, phone, email, relationship, is_primary FROM emergency_contacts WHERE user_id = ?').all(id);
 
     // 7. Active Sessions (single batch query)
-    userData.active_sessions = await db.prepare('SELECT id, device_info, ip_address, created_at FROM sessions WHERE user_id = ?').all(id);
+    userData.active_sessions = await db.prepare('SELECT id, device_info, ip_address, location, created_at FROM sessions WHERE user_id = ?').all(id);
+
+    // 8. Notifications
+    try {
+      userData.notifications = await db.prepare('SELECT id, type, title, message, read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 200').all(id);
+    } catch { userData.notifications = []; }
+
+    // 9. Login audit trail
+    try {
+      userData.login_history = await db.prepare('SELECT ip_address, email, success, created_at FROM login_attempts WHERE user_id = ? ORDER BY created_at DESC LIMIT 100').all(id);
+    } catch { userData.login_history = []; }
+
+    // 10. Billing history from Stripe (if available)
+    try {
+      const userRow = await db.get('SELECT stripe_customer_id FROM users WHERE id = ?', id);
+      if (userRow?.stripe_customer_id && stripe) {
+        const charges = await stripe.charges.list({ customer: userRow.stripe_customer_id, limit: 50 });
+        userData.billing_history = charges.data.map(c => ({
+          amount: c.amount / 100,
+          currency: c.currency,
+          status: c.status,
+          description: c.description,
+          created: new Date(c.created * 1000).toISOString(),
+        }));
+      } else {
+        userData.billing_history = [];
+      }
+    } catch { userData.billing_history = []; }
 
     res.json({ 
       success: true, 
@@ -347,6 +422,59 @@ router.get('/:id/export', requireAuth, async (req, res) => {
       success: false,
       error: { code: 'INTERNAL_ERROR', message: 'Failed to generate data export' }
     });
+  }
+});
+
+// POST /api/users/me/export — dedicated /me export endpoint (GDPR)
+router.post('/me/export', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    // Create a data_export_requests record
+    await db.run(
+      'INSERT INTO data_export_requests (user_id, status, expires_at) VALUES (?, ?, ?)',
+      userId, 'processing', new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    );
+
+    // For now, perform synchronous export and return immediately
+    // Future: queue async job and poll via GET /api/users/me/export/status
+    const userData = {};
+
+    userData.account = await db.get(
+      `SELECT u.id, u.email, u.name, u.role, u.created_at,
+              p.avatar_url, p.bio, p.phone, p.travel_style, p.home_city, p.pronouns
+       FROM users u LEFT JOIN profiles p ON u.id = p.user_id WHERE u.id = ?`,
+      userId
+    );
+
+    const trips = await db.all('SELECT id, name, destination, start_date, end_date, budget, status, notes, created_at FROM trips WHERE user_id = ?', userId);
+    userData.trips = trips;
+
+    userData.quiz_responses = await db.all('SELECT id, answers, result, created_at FROM quiz_responses WHERE user_id = ?', userId);
+    userData.emergency_contacts = await db.all('SELECT id, name, phone, email, relationship FROM emergency_contacts WHERE user_id = ?', userId);
+
+    try {
+      userData.notifications = await db.all('SELECT id, type, title, message, read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 200', userId);
+    } catch { userData.notifications = []; }
+
+    try {
+      userData.login_history = await db.all('SELECT ip_address, success, created_at FROM login_attempts WHERE user_id = ? ORDER BY created_at DESC LIMIT 100', userId);
+    } catch { userData.login_history = []; }
+
+    // Mark as ready
+    await db.run('UPDATE data_export_requests SET status = ? WHERE user_id = ? AND status = ?', 'ready', userId, 'processing');
+
+    res.json({
+      success: true,
+      data: {
+        export_date: new Date().toISOString(),
+        user_id: userId,
+        archive: userData,
+      }
+    });
+  } catch (error) {
+    logger.error(`[Users] Me export failed: ${error.message}`);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to generate data export' } });
   }
 });
 

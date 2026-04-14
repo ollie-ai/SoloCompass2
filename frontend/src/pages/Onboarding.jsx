@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { ChevronRight, Check, Globe, User, Star, Settings, Shield, Bell, Map, Compass } from 'lucide-react';
-import api from '../services/api';
+import api from '../lib/api';
 import toast from 'react-hot-toast';
 
 const STEPS = [

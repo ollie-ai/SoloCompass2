@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { Loader, CheckCircle, XCircle, Zap } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
-import api from '../services/api';
+import api from '../lib/api';
 import toast from 'react-hot-toast';
 
 export default function MagicLink() {

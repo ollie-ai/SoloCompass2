@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Monitor, Smartphone, Trash2, Loader } from 'lucide-react';
-import api from '../services/api';
+import api from '../lib/api';
 import toast from 'react-hot-toast';
 
 export default function SessionsList() {

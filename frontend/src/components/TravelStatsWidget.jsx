@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Globe, Map, Activity, MapPin } from 'lucide-react';
-import api from '../services/api';
+import api from '../lib/api';
 
 export default function TravelStatsWidget() {
   const [stats, setStats] = useState(null);

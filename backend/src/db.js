@@ -394,9 +394,35 @@ async function initializeDatabase() {
         summary TEXT,
         adventure_level TEXT,
         social_style TEXT,
+        travel_persona TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
+      -- Dedicated refresh tokens table
+      CREATE TABLE IF NOT EXISTS refresh_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_hash TEXT NOT NULL UNIQUE,
+        session_id TEXT REFERENCES sessions(id) ON DELETE CASCADE,
+        expires_at TIMESTAMP NOT NULL,
+        revoked BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);
+      CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token_hash ON refresh_tokens(token_hash);
+
+      -- Data export requests table (async GDPR export tracking)
+      CREATE TABLE IF NOT EXISTS data_export_requests (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'processing', 'ready', 'failed', 'expired')),
+        file_url TEXT,
+        expires_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_data_export_requests_user_id ON data_export_requests(user_id);
 
       -- Countries table (AI-researched destination data)
       CREATE TABLE IF NOT EXISTS countries (
@@ -2138,6 +2164,27 @@ async function runMigrations() {
       logger.warn('[Migration v028] skipped:', error.message);
     }
     await markMigration('v028_auth_security_tables');
+  }
+
+  // --- Migration v029: sessions location, quiz travel_persona ---
+  if (!await hasMigration('v029_sessions_location_quiz_persona')) {
+    try {
+      await pool.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'sessions' AND column_name = 'location') THEN
+            ALTER TABLE sessions ADD COLUMN location TEXT;
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quiz_results' AND column_name = 'travel_persona') THEN
+            ALTER TABLE quiz_results ADD COLUMN travel_persona TEXT;
+          END IF;
+        END $$;
+      `);
+      logger.info('[Migration v029] sessions.location and quiz_results.travel_persona columns added');
+    } catch (error) {
+      logger.warn('[Migration v029] skipped:', error.message);
+    }
+    await markMigration('v029_sessions_location_quiz_persona');
   }
 
   logger.info('[Migration] All migrations complete');

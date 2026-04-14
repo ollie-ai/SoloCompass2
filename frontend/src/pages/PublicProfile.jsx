@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { MapPin, Globe, Calendar, UserX } from 'lucide-react';
-import api from '../services/api';
+import api from '../lib/api';
 
 export default function PublicProfile() {
   const { id } = useParams();

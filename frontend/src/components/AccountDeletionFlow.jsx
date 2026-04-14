@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { AlertTriangle, Trash2, Loader } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
+import api from '../lib/api';
 import toast from 'react-hot-toast';
 
 export default function AccountDeletionFlow() {

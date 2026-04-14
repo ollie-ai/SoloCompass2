@@ -79,7 +79,7 @@ async function executeTool(toolName, args) {
         const rows = await db.all(
           `SELECT id, name, country, description, safety_rating, budget_level, image_url
            FROM destinations WHERE LOWER(name) LIKE ? OR LOWER(country) LIKE ? LIMIT 5`,
-          `%${args.query.toLowerCase()}%`
+          `%${args.query.toLowerCase()}%`, `%${args.query.toLowerCase()}%`
         );
         return { destinations: rows };
       }
@@ -87,7 +87,7 @@ async function executeTool(toolName, args) {
         const dest = await db.get(
           `SELECT name, country, safety_rating, safety_intelligence, fcdo_alert_status
            FROM destinations WHERE LOWER(name) LIKE ? OR LOWER(country) LIKE ? LIMIT 1`,
-          `%${args.destination.toLowerCase()}%`
+          `%${args.destination.toLowerCase()}%`, `%${args.destination.toLowerCase()}%`
         );
         return dest || { message: `No specific safety data found for ${args.destination}` };
       }
@@ -311,7 +311,7 @@ router.post('/chat', authenticate, requireFeature(FEATURES.AI_CHAT), checkAILimi
 
     // Update conversation metadata
     await db.run(
-      `UPDATE atlas_conversations SET message_count = message_count + 2, last_message_at = NOW(), updated_at = NOW() WHERE id = ?`,
+      `UPDATE atlas_conversations SET message_count = message_count + 2, last_message_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
       convId
     );
 

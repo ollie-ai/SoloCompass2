@@ -4,12 +4,14 @@ import Navbar from './Navbar';
 import Footer from './Footer';
 import AIChat from './AIChat';
 import AnnouncementBanner from './AnnouncementBanner';
+import GlobalSearch from './GlobalSearch';
 import { useAuthStore } from '../stores/authStore';
 import { useEffect, useState } from 'react';
 
 const Layout = () => {
   const location = useLocation();
   const [isLoaded, setIsLoaded] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsLoaded(true), 100);
@@ -33,6 +35,7 @@ const Layout = () => {
       </a>
       <Navbar />
       {isAuthenticated && <AnnouncementBanner />}
+      <GlobalSearch isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
       <main id="main-content" className="flex-1 pt-20" tabIndex={-1}>
         <AnimatePresence mode="wait">
           <motion.div

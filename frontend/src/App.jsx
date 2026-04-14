@@ -1,5 +1,5 @@
 import { useEffect, lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useAuthStore } from './stores/authStore';
@@ -58,6 +58,8 @@ const GuardianAcknowledge = lazy(() => import('./pages/GuardianAcknowledge'));
 const GuardianDecline = lazy(() => import('./pages/GuardianDecline'));
 const SharedTrip = lazy(() => import('./pages/SharedTrip'));
 const BottomNav = lazy(() => import('./components/BottomNav'));
+const Journal = lazy(() => import('./pages/Journal'));
+const Budget = lazy(() => import('./pages/Budget'));
 
 function LoadingFallback() {
   return (
@@ -340,6 +342,24 @@ function App() {
                 <Buddies />
               </ProtectedRoute>
             } />
+            <Route path="/buddy" element={<Navigate to="/buddies" replace />} />
+            <Route path="/explore" element={<Navigate to="/destinations" replace />} />
+            <Route
+              path="/journal"
+              element={
+                <ProtectedRoute>
+                  <Journal />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/budget"
+              element={
+                <ProtectedRoute>
+                  <Budget />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/terms" element={<Terms />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/cookies" element={<Cookies />} />

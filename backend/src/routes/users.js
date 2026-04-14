@@ -1,13 +1,22 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import rateLimit from 'express-rate-limit';
 import db from '../db.js';
-import { requireAuth, requireAdmin } from '../middleware/auth.js';
+import { requireAuth, requireAdmin, authenticate } from '../middleware/auth.js';
 import { sanitizeAll } from '../middleware/validate.js';
 import { stripe } from '../services/stripe.js';
 import logger from '../services/logger.js';
 
 const router = express.Router();
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: { code: 'TOO_MANY_REQUESTS', message: 'Too many requests, please try again later' } },
+});
 
 // Whitelist of allowed profile fields
 const ALLOWED_PROFILE_FIELDS = [
@@ -197,7 +206,7 @@ router.put('/:id', requireAuth, sanitizeAll(['name', 'bio', 'travel_style', 'pho
           error: { code: 'VALIDATION_ERROR', message: 'Current password is incorrect' }
         });
       }
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      const hashedPassword = await bcrypt.hash(newPassword, 12);
       await db.prepare('UPDATE users SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(hashedPassword, id);
     }
 
@@ -414,19 +423,180 @@ router.delete('/:id', requireAuth, async (req, res) => {
       return res.json({ success: true, data: { message: 'Account permanently deleted' } });
     }
 
-    // Soft delete (default)
+    // Soft delete with 30-day grace period deletion request
     await db.run(
       'UPDATE users SET deleted_at = CURRENT_TIMESTAMP, deleted_by = ? WHERE id = ?',
       req.userId, id
     );
-    logger.info(`[Admin] User ${id} soft-deleted by ${req.userId}`);
-    res.json({ success: true, data: { message: 'User soft-deleted. Use DELETE with ?permanent=true to remove permanently.' } });
+    const scheduledPurgeDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    try {
+      await db.run(
+        'INSERT INTO account_deletion_requests (user_id, status, scheduled_purge_date) VALUES (?, ?, ?)',
+        id, 'pending', scheduledPurgeDate
+      );
+    } catch (e) {
+      logger.warn(`[Users] Could not create deletion request record: ${e.message}`);
+    }
+    logger.info(`[Admin] User ${id} soft-deleted by ${req.userId}, purge scheduled for ${scheduledPurgeDate}`);
+    res.json({ success: true, data: { message: 'Account deletion initiated. Data will be permanently removed in 30 days.' } });
   } catch (error) {
     logger.error(`[Users] Failed to delete user: ${error.message}`);
     res.status(500).json({
       success: false,
       error: { code: 'INTERNAL_ERROR', message: 'Failed to delete user' }
     });
+  }
+});
+
+// GET /api/users/me/stats
+router.get('/me/stats', apiLimiter, authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    const [tripsResult, countriesResult, activitiesResult] = await Promise.all([
+      db.get('SELECT COUNT(*) as total FROM trips WHERE user_id = ? AND deleted_at IS NULL', userId),
+      db.get('SELECT COUNT(DISTINCT destination_id) as total FROM trips WHERE user_id = ? AND deleted_at IS NULL', userId),
+      db.get('SELECT COUNT(*) as total FROM activities a JOIN itinerary_days id ON a.day_id = id.id JOIN trips t ON t.id = id.trip_id WHERE t.user_id = ? AND t.deleted_at IS NULL', userId),
+    ]);
+
+    const checkInsResult = await db.get('SELECT COUNT(*) as total FROM check_ins WHERE user_id = ?', userId);
+
+    res.json({
+      success: true,
+      data: {
+        trips_total: tripsResult?.total || 0,
+        countries_visited: countriesResult?.total || 0,
+        activities_completed: activitiesResult?.total || 0,
+        check_ins: checkInsResult?.total || 0,
+      }
+    });
+  } catch (error) {
+    logger.error(`[Users] Stats failed: ${error.message}`);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } });
+  }
+});
+
+// GET /api/users/me/profile
+router.get('/me/profile', apiLimiter, authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const user = await db.get(
+      `SELECT u.id, u.email, u.name, u.role, u.is_premium, u.subscription_tier, u.created_at,
+              p.display_name, p.avatar_url, p.bio, p.phone, p.home_city, p.home_base,
+              p.travel_style, p.pronouns, p.solo_travel_experience, p.budget_level,
+              p.pace, p.interests, p.visible
+       FROM users u LEFT JOIN profiles p ON p.user_id = u.id WHERE u.id = ?`,
+      userId
+    );
+    if (!user) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'User not found' } });
+    res.json({ success: true, data: { profile: user } });
+  } catch (error) {
+    logger.error(`[Users] Me profile failed: ${error.message}`);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } });
+  }
+});
+
+// PUT /api/users/me/profile
+router.put('/me/profile', apiLimiter, authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const allowed = ['display_name', 'bio', 'phone', 'home_city', 'home_base', 'travel_style', 'pronouns', 'solo_travel_experience', 'budget_level', 'pace', 'interests', 'visible'];
+    const nameAllowed = ['name'];
+    
+    const profileUpdates = {};
+    const userUpdates = {};
+    
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) profileUpdates[key] = req.body[key];
+    }
+    for (const key of nameAllowed) {
+      if (req.body[key] !== undefined) userUpdates[key] = req.body[key];
+    }
+
+    if (Object.keys(profileUpdates).length > 0) {
+      const setParts = Object.keys(profileUpdates).map(k => `${k} = ?`).join(', ');
+      const values = [...Object.values(profileUpdates), userId];
+      await db.run(`UPDATE profiles SET ${setParts}, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`, ...values);
+    }
+    
+    if (Object.keys(userUpdates).length > 0) {
+      const setParts = Object.keys(userUpdates).map(k => `${k} = ?`).join(', ');
+      const values = [...Object.values(userUpdates), userId];
+      await db.run(`UPDATE users SET ${setParts}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, ...values);
+    }
+
+    res.json({ success: true, data: { message: 'Profile updated successfully' } });
+  } catch (error) {
+    logger.error(`[Users] Me profile update failed: ${error.message}`);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } });
+  }
+});
+
+// PUT /api/users/me/password
+router.put('/me/password', apiLimiter, authenticate, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.userId;
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Current and new passwords are required' } });
+    }
+    
+    const passwordRegex = /^(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
+    if (!passwordRegex.test(newPassword)) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Password must be at least 8 characters with uppercase, number, and special character' } });
+    }
+
+    const user = await db.get('SELECT id, password FROM users WHERE id = ?', userId);
+    if (!user) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'User not found' } });
+
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) return res.status(401).json({ success: false, error: { code: 'INVALID_PASSWORD', message: 'Current password is incorrect' } });
+
+    const hashed = await bcrypt.hash(newPassword, 12);
+    await db.run('UPDATE users SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', hashed, userId);
+
+    res.json({ success: true, data: { message: 'Password changed successfully' } });
+  } catch (error) {
+    logger.error(`[Users] Password change failed: ${error.message}`);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } });
+  }
+});
+
+// GET /api/users/:id/public
+router.get('/:id/public', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await db.get(
+      `SELECT u.id, u.name, u.created_at,
+              p.display_name, p.avatar_url, p.bio, p.travel_style, p.home_city, p.pronouns, p.solo_travel_experience, p.visible
+       FROM users u
+       LEFT JOIN profiles p ON p.user_id = u.id
+       WHERE u.id = ? AND u.deleted_at IS NULL`,
+      id
+    );
+
+    if (!user || user.visible === false) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile not found or not public' } });
+    }
+
+    const { visible: _, ...publicProfile } = user;
+    res.json({ success: true, data: { profile: publicProfile } });
+  } catch (error) {
+    logger.error(`[Users] Public profile failed: ${error.message}`);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } });
+  }
+});
+
+// POST /api/users/me/deactivate  
+router.post('/me/deactivate', apiLimiter, authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    await db.run('UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?', userId);
+    res.json({ success: true, data: { message: 'Account deactivated. You can reactivate by logging in again.' } });
+  } catch (error) {
+    logger.error(`[Users] Deactivate failed: ${error.message}`);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } });
   }
 });
 

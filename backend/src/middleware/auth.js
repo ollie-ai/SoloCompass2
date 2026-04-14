@@ -248,7 +248,7 @@ export const generateToken = (user, sessionId = null) => {
   return jwt.sign(
     payload,
     secret,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
   );
 };
 
@@ -259,7 +259,7 @@ export const generateRefreshToken = (user) => {
   return jwt.sign(
     { userId: user.id, type: 'refresh' },
     secret,
-    { expiresIn: '30d' }
+    { expiresIn: '7d' }
   );
 };
 

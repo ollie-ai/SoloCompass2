@@ -243,6 +243,7 @@ async function initializeDatabase() {
         preferred_climate TEXT,
         trip_duration INTEGER,
         solo_travel_experience TEXT,
+        pronouns TEXT,
         safety_priority TEXT,
         visible BOOLEAN DEFAULT true,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -266,6 +267,88 @@ async function initializeDatabase() {
       CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
       CREATE INDEX IF NOT EXISTS idx_sessions_last_activity ON sessions(last_activity);
       CREATE INDEX IF NOT EXISTS idx_sessions_refresh_token ON sessions(refresh_token);
+
+      -- Login attempts table for per-IP audit trail
+      CREATE TABLE IF NOT EXISTS login_attempts (
+        id SERIAL PRIMARY KEY,
+        ip_address TEXT NOT NULL,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        email TEXT,
+        success BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip_address);
+      CREATE INDEX IF NOT EXISTS idx_login_attempts_user_id ON login_attempts(user_id);
+
+      -- Password reset tokens (separate table)
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token TEXT NOT NULL UNIQUE,
+        expires_at TIMESTAMP NOT NULL,
+        used BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token);
+      CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
+
+      -- Email verification tokens (separate table)
+      CREATE TABLE IF NOT EXISTS email_verification_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token TEXT NOT NULL UNIQUE,
+        expires_at TIMESTAMP NOT NULL,
+        used BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_token ON email_verification_tokens(token);
+
+      -- Magic link tokens
+      CREATE TABLE IF NOT EXISTS magic_link_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token TEXT NOT NULL UNIQUE,
+        expires_at TIMESTAMP NOT NULL,
+        used BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_magic_link_tokens_token ON magic_link_tokens(token);
+
+      -- 2FA table
+      CREATE TABLE IF NOT EXISTS user_2fa (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        secret TEXT NOT NULL,
+        backup_codes TEXT NOT NULL,
+        enabled BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Account deletion requests
+      CREATE TABLE IF NOT EXISTS account_deletion_requests (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'anonymised', 'purged')),
+        scheduled_purge_date TIMESTAMP NOT NULL,
+        reason TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_account_deletion_requests_user_id ON account_deletion_requests(user_id);
+      CREATE INDEX IF NOT EXISTS idx_account_deletion_requests_status ON account_deletion_requests(status);
+
+      -- Onboarding state
+      CREATE TABLE IF NOT EXISTS onboarding_state (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        current_step INTEGER DEFAULT 1,
+        completed_steps TEXT DEFAULT '[]',
+        skipped_steps TEXT DEFAULT '[]',
+        completed BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
 
       -- Categories table
       CREATE TABLE IF NOT EXISTS categories (
@@ -2031,6 +2114,30 @@ async function runMigrations() {
       logger.warn('[Migration v027] skipped:', error.message);
     }
     await markMigration('v027_ai_observability');
+  }
+
+  // --- Migration v028: Auth security tables and profile columns ---
+  if (!await hasMigration('v028_auth_security_tables')) {
+    try {
+      await pool.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'pronouns') THEN
+            ALTER TABLE profiles ADD COLUMN pronouns TEXT;
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'deleted_at') THEN
+            ALTER TABLE users ADD COLUMN deleted_at TIMESTAMP;
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'admin_level') THEN
+            ALTER TABLE users ADD COLUMN admin_level TEXT DEFAULT 'support';
+          END IF;
+        END $$;
+      `);
+      logger.info('[Migration v028] auth security columns added');
+    } catch (error) {
+      logger.warn('[Migration v028] skipped:', error.message);
+    }
+    await markMigration('v028_auth_security_tables');
   }
 
   logger.info('[Migration] All migrations complete');

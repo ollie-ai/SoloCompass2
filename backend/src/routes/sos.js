@@ -1,4 +1,5 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import db from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { notifyEmergencyContacts } from '../services/notificationService.js';
@@ -8,8 +9,16 @@ import logger from '../services/logger.js';
 
 const router = express.Router();
 
+const sosTriggerLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many SOS requests. Please wait before trying again.' }
+});
+
 // POST /sos/trigger - Trigger SOS alert
-router.post('/trigger', authenticate, async (req, res) => {
+router.post('/trigger', authenticate, sosTriggerLimiter, async (req, res) => {
   try {
     const userId = req.userId;
     const { latitude, longitude, address, message, tripId, triggerType = 'manual' } = req.body;

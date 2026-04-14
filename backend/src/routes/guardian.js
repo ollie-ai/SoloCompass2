@@ -405,7 +405,9 @@ router.post('/invite', authenticate, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Guardian email is required' });
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guardianEmail)) {
+    const emailTrimmed = String(guardianEmail).slice(0, 254);
+    const atIdx = emailTrimmed.indexOf('@');
+    if (atIdx < 1 || emailTrimmed.lastIndexOf('.') <= atIdx + 1) {
       return res.status(400).json({ success: false, error: 'Invalid email format' });
     }
 

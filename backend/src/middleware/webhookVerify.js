@@ -28,7 +28,13 @@ async function checkAndRecordInboundEvent(provider, eventId, payload) {
     );
     return false; // new event
   } catch (err) {
-    if (err.message && (err.message.includes('unique') || err.message.includes('duplicate') || err.message.includes('UNIQUE'))) {
+    // PostgreSQL unique_violation = 23505; SQLite = SQLITE_CONSTRAINT_UNIQUE / errno 19
+    const isDuplicate =
+      err.code === '23505' ||           // PostgreSQL
+      err.code === 'SQLITE_CONSTRAINT_UNIQUE' || // SQLite (better-sqlite3)
+      err.errno === 19 ||               // SQLite (node-sqlite3)
+      (err.message && err.message.toLowerCase().includes('unique'));
+    if (isDuplicate) {
       logger.warn(`[WebhookDedup] Duplicate event ignored: provider=${provider} event_id=${eventId}`);
       return true; // duplicate
     }

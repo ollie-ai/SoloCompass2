@@ -58,7 +58,7 @@ async function dispatchSlack(alertId, type, severity, errorDetails) {
 
   const emoji = severity === 'critical' ? ':rotating_light:' : ':warning:';
   const body = {
-    text: `${emoji} *SoloCompass P0 Alert* — \`${type}\` (severity: *${severity}*)`,
+    text: `${emoji} *SoloCompass Alert* — \`${type}\` (severity: *${severity}*)`,
     attachments: [
       {
         color: severity === 'critical' ? '#FF0000' : '#FFA500',

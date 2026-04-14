@@ -87,11 +87,4 @@ Toggle.propTypes = {
   name: PropTypes.string,
 };
 
-Toggle.defaultProps = {
-  checked: false,
-  disabled: false,
-  size: 'md',
-  className: '',
-};
-
 export default memo(Toggle);

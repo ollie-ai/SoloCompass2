@@ -147,10 +147,4 @@ Modal.propTypes = {
   className: PropTypes.string,
 };
 
-Modal.defaultProps = {
-  size: 'md',
-  closeOnOverlayClick: true,
-  className: '',
-};
-
 export default memo(Modal);

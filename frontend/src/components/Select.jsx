@@ -106,12 +106,4 @@ Select.propTypes = {
   name: PropTypes.string,
 };
 
-Select.defaultProps = {
-  options: [],
-  disabled: false,
-  required: false,
-  size: 'md',
-  className: '',
-};
-
 export default memo(Select);

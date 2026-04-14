@@ -31,9 +31,4 @@ Tooltip.propTypes = {
   className: PropTypes.string,
 };
 
-Tooltip.defaultProps = {
-  position: 'top',
-  className: '',
-};
-
 export default memo(Tooltip);

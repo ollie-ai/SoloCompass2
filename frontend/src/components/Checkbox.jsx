@@ -86,10 +86,4 @@ Checkbox.propTypes = {
   name: PropTypes.string,
 };
 
-Checkbox.defaultProps = {
-  disabled: false,
-  indeterminate: false,
-  className: '',
-};
-
 export default memo(Checkbox);

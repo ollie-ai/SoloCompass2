@@ -56,10 +56,4 @@ Tabs.propTypes = {
   className: PropTypes.string,
 };
 
-Tabs.defaultProps = {
-  tabs: [],
-  variant: 'default',
-  className: '',
-};
-
 export default memo(Tabs);

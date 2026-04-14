@@ -100,11 +100,4 @@ Accordion.propTypes = {
   className: PropTypes.string,
 };
 
-Accordion.defaultProps = {
-  items: [],
-  defaultOpen: [],
-  allowMultiple: false,
-  className: '',
-};
-
 export default memo(Accordion);

@@ -54,6 +54,7 @@ async function bootstrap() {
     const { default: logger } = await import('./services/logger.js');
     const { initWebSocketServer } = await import('./services/websocket.js');
     const { startScheduledCheckInMonitor } = await import('./services/checkinMonitor.js');
+    const { startCriticalEventQueue } = await import('./services/criticalEventQueue.js');
     const { generateSitemap } = await import('./services/sitemapService.js');
 
     // route imports
@@ -95,6 +96,7 @@ async function bootstrap() {
     const { default: safetyRoutes } = await import('./routes/safety.js');
     const { default: aiRoutes } = await import('./routes/ai.js');
     const { default: atlasRoutes } = await import('./routes/atlas.js');
+    const { default: featureFlagRoutes } = await import('./routes/featureFlags.js');
     const { default: translateRoutes } = await import('./routes/translate.js');
     const { default: helpRoutes } = await import('./routes/help.js');
     const { default: webhookRoutes } = await import('./routes/webhooks.js');
@@ -161,6 +163,7 @@ const { default: countriesRoutes } = await import('./routes/countries.js');
     app.use('/api/auth', authRoutes);
     app.use('/api/ai', aiRoutes);
     app.use('/api/v1/atlas', atlasRoutes);
+    app.use('/api/v1/feature-flags', featureFlagRoutes);
     app.use('/api/trips', tripRoutes);
     app.use('/api/accommodations', accommodationsRoutes);
     app.use('/api/bookings', bookingsRoutes);
@@ -271,6 +274,7 @@ const { default: countriesRoutes } = await import('./routes/countries.js');
         console.log(`\x1b[32m SoloCompass Core Online :: Listening on Port ${PORT} \x1b[0m`);
         initWebSocketServer(server);
         startScheduledCheckInMonitor();
+        startCriticalEventQueue();
         generateSitemap().catch(err => logger.error(`[SEO] Sitemap fail: ${err.message}`));
         
         // Automated Production Seeding (Phase 5) - Development only

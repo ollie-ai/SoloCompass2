@@ -45,6 +45,8 @@ export const authenticate = async (req, res, next) => {
   const token = req.cookies?.token || req.headers.authorization?.replace('Bearer ', '');
   
   if (!token) {
+    const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+    logger.warn(`[Auth] 401 UNAUTHORIZED - no token | IP: ${ip} | ${req.method} ${req.originalUrl}`);
     return res.status(401).json({
       success: false,
       error: { code: 'UNAUTHORIZED', message: 'Not authenticated' }
@@ -65,6 +67,8 @@ export const authenticate = async (req, res, next) => {
     if (isSessionValidationEnabled()) {
       const isValidSession = await validateSession(decoded.userId, decoded.sid);
       if (!isValidSession) {
+        const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+        logger.warn(`[Auth] 401 SESSION_EXPIRED | user: ${decoded.userId} | IP: ${ip} | ${req.method} ${req.originalUrl}`);
         return res.status(401).json({
           success: false,
           error: { code: 'SESSION_EXPIRED', message: 'Session expired or invalid' }
@@ -88,12 +92,14 @@ export const authenticate = async (req, res, next) => {
     req.user = decoded;
     next();
   } catch (error) {
+    const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
     if (error instanceof Error && error.message.includes('JWT_SECRET')) {
       return res.status(500).json({
         success: false,
         error: { code: 'INTERNAL_ERROR', message: 'Security not initialized' }
       });
     }
+    logger.warn(`[Auth] 401 INVALID_TOKEN | IP: ${ip} | UA: ${req.headers['user-agent'] || 'unknown'} | ${req.method} ${req.originalUrl}`);
     return res.status(401).json({
       success: false,
       error: { code: 'UNAUTHORIZED', message: 'Invalid token' }
@@ -110,6 +116,8 @@ export const VALID_USER_ROLES = ['user', 'viewer', 'admin'];
 export const requireAdmin = async (req, res, next) => {
   await authenticate(req, res, () => {
     if (req.userRole !== 'admin') {
+      const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+      logger.warn(`[Auth] 403 FORBIDDEN - admin required | user: ${req.userId} | IP: ${ip} | ${req.method} ${req.originalUrl}`);
       return res.status(403).json({
         success: false,
         error: { code: 'FORBIDDEN', message: 'Admin access required' }
@@ -125,6 +133,8 @@ export const requireAdmin = async (req, res, next) => {
 export const requireSuperAdmin = async (req, res, next) => {
   await authenticate(req, res, () => {
     if (req.userRole !== 'admin') {
+      const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+      logger.warn(`[Auth] 403 FORBIDDEN - super_admin required | user: ${req.userId} | IP: ${ip} | ${req.method} ${req.originalUrl}`);
       return res.status(403).json({
         success: false,
         error: { code: 'FORBIDDEN', message: 'Admin access required' }
@@ -132,6 +142,8 @@ export const requireSuperAdmin = async (req, res, next) => {
     }
     const adminLevel = req.user?.admin_level || 'support';
     if (adminLevel !== 'super_admin') {
+      const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+      logger.warn(`[Auth] 403 INSUFFICIENT_PERMISSIONS - super_admin required | user: ${req.userId} | level: ${adminLevel} | IP: ${ip} | ${req.method} ${req.originalUrl}`);
       return res.status(403).json({
         success: false,
         error: { code: 'INSUFFICIENT_PERMISSIONS', message: 'Super admin access required' }
@@ -248,7 +260,7 @@ export const generateToken = (user, sessionId = null) => {
   return jwt.sign(
     payload,
     secret,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
   );
 };
 
@@ -259,7 +271,7 @@ export const generateRefreshToken = (user) => {
   return jwt.sign(
     { userId: user.id, type: 'refresh' },
     secret,
-    { expiresIn: '30d' }
+    { expiresIn: '7d' }
   );
 };
 

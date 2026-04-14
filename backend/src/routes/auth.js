@@ -25,7 +25,7 @@ const authLimiter = rateLimit({
 
 const passwordResetLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 5,
+  max: 3,
   message: {
     success: false,
     error: { code: 'TOO_MANY_REQUESTS', message: 'Too many requests, please try again after 1 hour' }
@@ -42,6 +42,37 @@ const getSecret = () => {
     return null;
   }
   return secret;
+};
+
+// IP-level lockout: tracks failed login attempts per IP address across all accounts.
+// After IP_MAX_FAILURES failed attempts within the window the IP is blocked for
+// IP_LOCKOUT_MS milliseconds. This complements the per-account lockout.
+const IP_MAX_FAILURES = 20;
+const IP_LOCKOUT_MS = 30 * 60 * 1000; // 30 minutes
+const ipFailures = new Map(); // ip -> { count, lockedUntil }
+
+const checkIpLockout = (ip) => {
+  const entry = ipFailures.get(ip);
+  if (!entry) return false;
+  if (entry.lockedUntil && entry.lockedUntil > Date.now()) return true;
+  if (entry.lockedUntil && entry.lockedUntil <= Date.now()) {
+    ipFailures.delete(ip);
+  }
+  return false;
+};
+
+const recordIpFailure = (ip) => {
+  const entry = ipFailures.get(ip) || { count: 0, lockedUntil: null };
+  entry.count += 1;
+  if (entry.count >= IP_MAX_FAILURES) {
+    entry.lockedUntil = Date.now() + IP_LOCKOUT_MS;
+    logger.warn(`[Auth] IP lockout triggered for ${ip} after ${entry.count} failures`);
+  }
+  ipFailures.set(ip, entry);
+};
+
+const clearIpFailure = (ip) => {
+  ipFailures.delete(ip);
 };
 
 // Helper to parse user agent into device info
@@ -147,7 +178,7 @@ router.post('/register', [
     
     await db.run(
       'INSERT INTO sessions (id, user_id, refresh_token, device_info, ip_address, user_agent, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      sessionId, user.id, refreshHash, deviceInfo, ipAddress, userAgent, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      sessionId, user.id, refreshHash, deviceInfo, ipAddress, userAgent, new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
     );
 
     const tokenWithSession = generateToken({ id: user.id, email: user.email, role: user.role }, sessionId);
@@ -162,15 +193,15 @@ router.post('/register', [
     res.cookie('token', tokenWithSession, {
       httpOnly: true,
       secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
+      sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     const { password: _, ...userWithoutPassword } = user;
@@ -199,9 +230,20 @@ router.post('/login', [
 ], handleValidationErrors, async (req, res) => {
   try {
     const { email, password } = req.body;
+    const ipAddress = req.ip || req.connection?.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+
+    // IP-level lockout check
+    if (checkIpLockout(ipAddress)) {
+      logger.warn(`[Auth] Login blocked - IP locked out | IP: ${ipAddress}`);
+      return res.status(423).json({
+        success: false,
+        error: { code: 'IP_LOCKED', message: 'Too many failed attempts from this IP. Try again in 30 minutes.' }
+      });
+    }
 
     const user = await db.get('SELECT id, email, password, name, role, is_verified, is_premium, subscription_tier, premium_expires_at, failed_attempts, locked_until, admin_level FROM users WHERE email = ?', email); // FIXED: was SELECT * which exposed sensitive fields
     if (!user) {
+      recordIpFailure(ipAddress);
       return res.status(401).json({
         success: false,
         error: { code: 'UNAUTHORIZED', message: 'Invalid credentials' }
@@ -221,14 +263,15 @@ router.post('/login', [
     if (!validPassword) {
       // Increment failed attempts
       const newFailedAttempts = (user.failed_attempts || 0) + 1;
+      recordIpFailure(ipAddress);
       if (newFailedAttempts >= 5) {
-        // Lock account for 15 minutes
-        const lockedUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+        // Lock account for 30 minutes
+        const lockedUntil = new Date(Date.now() + 30 * 60 * 1000).toISOString();
         await db.run('UPDATE users SET failed_attempts = ?, locked_until = ? WHERE id = ?',
           newFailedAttempts, lockedUntil, user.id);
         return res.status(423).json({
           success: false,
-          error: { code: 'ACCOUNT_LOCKED', message: 'Too many failed attempts. Account locked for 15 minutes.' }
+          error: { code: 'ACCOUNT_LOCKED', message: 'Too many failed attempts. Account locked for 30 minutes.' }
         });
       }
       await db.run('UPDATE users SET failed_attempts = ? WHERE id = ?', newFailedAttempts, user.id);
@@ -242,6 +285,7 @@ router.post('/login', [
     if (user.failed_attempts > 0 || user.locked_until) {
       await db.run('UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ?', user.id);
     }
+    clearIpFailure(ipAddress);
 
     if (!user.is_verified && user.role !== 'admin') {
       return res.status(401).json({
@@ -255,8 +299,7 @@ router.post('/login', [
     const sessionId = uuidv4();
     const refreshHash = hashToken(refreshToken);
 
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-    const ipAddress = req.ip || req.connection?.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     const userAgent = req.headers['user-agent'] || 'unknown';
     const deviceInfo = parseUserAgent(userAgent);
     
@@ -281,15 +324,15 @@ router.post('/login', [
     res.cookie('token', tokenWithSession, {
       httpOnly: true,
       secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
+      sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     const { password: _, ...userWithoutPassword } = user;
@@ -358,7 +401,7 @@ router.post('/refresh', async (req, res) => {
       const newRefreshToken = generateRefreshToken({ id: user.id, email: user.email, role: user.role });
       const newSessionId = uuidv4();
       const newRefreshHash = hashToken(newRefreshToken);
-      const newExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
       const ipAddress = req.ip || req.connection?.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
       const userAgent = req.headers['user-agent'] || 'unknown';
       const deviceInfo = parseUserAgent(userAgent);
@@ -378,15 +421,15 @@ router.post('/refresh', async (req, res) => {
     res.cookie('token', result.newToken, {
       httpOnly: true,
       secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
+      sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.cookie('refreshToken', result.newRefreshToken, {
       httpOnly: true,
       secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.json({ success: true, data: { message: 'Tokens refreshed successfully' } });

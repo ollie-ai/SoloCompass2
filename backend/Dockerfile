@@ -1,5 +1,5 @@
 # Production Dockerfile for Node.js backend
-FROM node:20-alpine
+FROM node:18-alpine
 
 WORKDIR /app
 

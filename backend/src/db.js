@@ -1132,6 +1132,224 @@ async function initializeDatabase() {
         ended_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
+      -- Critical events table (guaranteed-delivery for SOS and high-priority alerts)
+      -- Rows remain in this table until delivery is confirmed; a background job retries
+      -- any row where status = 'pending' or 'failed' and delivery_attempts < 10.
+      CREATE TABLE IF NOT EXISTS critical_events (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        event_type TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'delivered', 'failed')),
+        delivery_attempts INTEGER DEFAULT 0,
+        delivered_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Trip legs table (multi-destination leg structure)
+      CREATE TABLE IF NOT EXISTS trip_legs (
+        id SERIAL PRIMARY KEY,
+        trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+        leg_order INTEGER NOT NULL DEFAULT 1,
+        origin TEXT NOT NULL,
+        destination TEXT NOT NULL,
+        departure_date DATE,
+        arrival_date DATE,
+        transport_mode TEXT,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Transport segments table (multi-modal transport per leg)
+      CREATE TABLE IF NOT EXISTS transport_segments (
+        id SERIAL PRIMARY KEY,
+        trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+        trip_leg_id INTEGER REFERENCES trip_legs(id) ON DELETE SET NULL,
+        mode TEXT DEFAULT 'other' CHECK(mode IN ('flight', 'train', 'bus', 'ferry', 'car', 'other')),
+        provider TEXT,
+        from_location TEXT,
+        to_location TEXT,
+        departure_datetime TIMESTAMP,
+        arrival_datetime TIMESTAMP,
+        booking_ref TEXT,
+        seat_info TEXT,
+        cost NUMERIC,
+        currency TEXT DEFAULT 'USD',
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Journal entries table
+      CREATE TABLE IF NOT EXISTS journal_entries (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        trip_id INTEGER REFERENCES trips(id) ON DELETE SET NULL,
+        entry_date DATE DEFAULT CURRENT_DATE,
+        title TEXT,
+        text TEXT,
+        mood TEXT,
+        location TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Journal photos table
+      CREATE TABLE IF NOT EXISTS journal_photos (
+        id SERIAL PRIMARY KEY,
+        journal_entry_id INTEGER NOT NULL REFERENCES journal_entries(id) ON DELETE CASCADE,
+        photo_url TEXT NOT NULL,
+        caption TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Atlas conversations table (AI conversation history)
+      CREATE TABLE IF NOT EXISTS atlas_conversations (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        trip_id INTEGER REFERENCES trips(id) ON DELETE SET NULL,
+        title TEXT,
+        messages TEXT NOT NULL DEFAULT '[]',
+        model_used TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Feature flags table
+      CREATE TABLE IF NOT EXISTS feature_flags (
+        id SERIAL PRIMARY KEY,
+        flag_key TEXT UNIQUE NOT NULL,
+        is_enabled BOOLEAN DEFAULT false,
+        description TEXT,
+        allowed_tiers TEXT DEFAULT '[]',
+        rollout_percentage INTEGER DEFAULT 100 CHECK(rollout_percentage >= 0 AND rollout_percentage <= 100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Safe return plans table
+      CREATE TABLE IF NOT EXISTS safe_return_plans (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+        plan_json TEXT NOT NULL,
+        emergency_contacts_snapshot TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Guardian invites table (invite lifecycle tracking)
+      CREATE TABLE IF NOT EXISTS guardian_invites (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        contact_id INTEGER NOT NULL REFERENCES emergency_contacts(id) ON DELETE CASCADE,
+        invite_token TEXT UNIQUE NOT NULL,
+        status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'accepted', 'declined', 'expired')),
+        sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        accepted_at TIMESTAMP,
+        expires_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Weather cache table
+      CREATE TABLE IF NOT EXISTS weather_cache (
+        id SERIAL PRIMARY KEY,
+        destination_id INTEGER REFERENCES destinations(id) ON DELETE SET NULL,
+        location_key TEXT NOT NULL,
+        forecast_json TEXT NOT NULL,
+        fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP NOT NULL,
+        UNIQUE(location_key)
+      );
+
+      -- User usage stats table (unified metered usage)
+      CREATE TABLE IF NOT EXISTS user_usage_stats (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        total_trips INTEGER DEFAULT 0,
+        total_ai_queries INTEGER DEFAULT 0,
+        total_check_ins INTEGER DEFAULT 0,
+        last_active TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id)
+      );
+
+      -- Inbound webhook dedup table
+      CREATE TABLE IF NOT EXISTS webhook_inbound_logs (
+        id SERIAL PRIMARY KEY,
+        provider TEXT NOT NULL,
+        event_id TEXT NOT NULL,
+        payload TEXT,
+        processed_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(event_id)
+      );
+
+      -- Travel stats table (aggregated personal stats)
+      CREATE TABLE IF NOT EXISTS travel_stats (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        countries_visited INTEGER DEFAULT 0,
+        cities_visited INTEGER DEFAULT 0,
+        trips_completed INTEGER DEFAULT 0,
+        total_days_abroad INTEGER DEFAULT 0,
+        total_distance_km NUMERIC DEFAULT 0,
+        favourite_region TEXT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id)
+      );
+
+      -- Safety scores table (destination safety assessments)
+      CREATE TABLE IF NOT EXISTS safety_scores (
+        id SERIAL PRIMARY KEY,
+        destination_id INTEGER NOT NULL REFERENCES destinations(id) ON DELETE CASCADE,
+        overall_score NUMERIC,
+        crime_index NUMERIC,
+        health_risk TEXT,
+        political_stability TEXT,
+        transport_safety TEXT,
+        solo_female_score NUMERIC,
+        assessed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        source TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Atlas prompt templates table
+      CREATE TABLE IF NOT EXISTS atlas_prompt_templates (
+        id SERIAL PRIMARY KEY,
+        name TEXT UNIQUE NOT NULL,
+        version INTEGER DEFAULT 1,
+        system_prompt TEXT NOT NULL,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Boarding passes table (linked to transport_segments)
+      CREATE TABLE IF NOT EXISTS boarding_passes (
+        id SERIAL PRIMARY KEY,
+        transport_segment_id INTEGER NOT NULL REFERENCES transport_segments(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        raw_barcode TEXT,
+        parsed_data TEXT,
+        image_url TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Destination routes table (inter-destination connections)
+      CREATE TABLE IF NOT EXISTS destination_routes (
+        id SERIAL PRIMARY KEY,
+        from_destination_id INTEGER NOT NULL REFERENCES destinations(id) ON DELETE CASCADE,
+        to_destination_id INTEGER NOT NULL REFERENCES destinations(id) ON DELETE CASCADE,
+        transport_modes TEXT,
+        avg_duration_hours NUMERIC,
+        avg_cost_usd NUMERIC,
+        notes TEXT,
+        UNIQUE(from_destination_id, to_destination_id)
+      );
     `);
 
     // Create indexes
@@ -1146,6 +1364,7 @@ async function initializeDatabase() {
       CREATE INDEX IF NOT EXISTS idx_emergency_contacts_user_id ON emergency_contacts(user_id);
       CREATE INDEX IF NOT EXISTS idx_check_ins_user_id ON check_ins(user_id);
       CREATE INDEX IF NOT EXISTS idx_scheduled_check_ins_user_id ON scheduled_check_ins(user_id);
+      CREATE INDEX IF NOT EXISTS idx_checkins_scheduled ON scheduled_check_ins(scheduled_time);
       CREATE INDEX IF NOT EXISTS idx_ai_cache_lookup ON ai_itinerary_cache(destination, days, pace, solo_vibe);
       
       -- Destination filtering
@@ -1233,6 +1452,39 @@ async function initializeDatabase() {
       CREATE INDEX IF NOT EXISTS idx_calls_receiver ON buddy_calls(receiver_id);
       CREATE INDEX IF NOT EXISTS idx_calls_conversation ON buddy_calls(conversation_id);
       CREATE INDEX IF NOT EXISTS idx_calls_status ON buddy_calls(status);
+
+      -- Critical events indexes
+      CREATE INDEX IF NOT EXISTS idx_critical_events_user ON critical_events(user_id);
+      CREATE INDEX IF NOT EXISTS idx_critical_events_status ON critical_events(status);
+
+      -- Trip legs indexes
+      CREATE INDEX IF NOT EXISTS idx_trip_legs_trip ON trip_legs(trip_id);
+
+      -- Transport segments indexes
+      CREATE INDEX IF NOT EXISTS idx_transport_segments_trip ON transport_segments(trip_id);
+      CREATE INDEX IF NOT EXISTS idx_transport_segments_leg ON transport_segments(trip_leg_id);
+
+      -- Journal indexes
+      CREATE INDEX IF NOT EXISTS idx_journal_entries_user ON journal_entries(user_id);
+      CREATE INDEX IF NOT EXISTS idx_journal_entries_trip ON journal_entries(trip_id);
+      CREATE INDEX IF NOT EXISTS idx_journal_photos_entry ON journal_photos(journal_entry_id);
+
+      -- Atlas conversations indexes
+      CREATE INDEX IF NOT EXISTS idx_atlas_conversations_user ON atlas_conversations(user_id);
+
+      -- Weather cache indexes
+      CREATE INDEX IF NOT EXISTS idx_weather_cache_key ON weather_cache(location_key);
+      CREATE INDEX IF NOT EXISTS idx_weather_cache_expires ON weather_cache(expires_at);
+
+      -- Guardian invites indexes
+      CREATE INDEX IF NOT EXISTS idx_guardian_invites_user ON guardian_invites(user_id);
+      CREATE INDEX IF NOT EXISTS idx_guardian_invites_token ON guardian_invites(invite_token);
+
+      -- Safety scores indexes
+      CREATE INDEX IF NOT EXISTS idx_safety_scores_destination ON safety_scores(destination_id);
+
+      -- Webhook inbound logs indexes
+      CREATE INDEX IF NOT EXISTS idx_webhook_inbound_event_id ON webhook_inbound_logs(event_id);
     `);
 
     // Migration for existing tables: Add status and source to destinations
@@ -1252,13 +1504,78 @@ async function initializeDatabase() {
             ALTER TABLE destinations ADD COLUMN source TEXT DEFAULT 'manual';
             ALTER TABLE destinations ADD CONSTRAINT dest_source_check CHECK (source IN ('manual', 'ai'));
           END IF;
+
+          -- solo_score alias column (backward-compatible mirror of solo_friendly_rating)
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'destinations' AND column_name = 'solo_score') THEN
+            ALTER TABLE destinations ADD COLUMN solo_score INTEGER;
+          END IF;
+
+          -- cost_level alias column (backward-compatible mirror of budget_level)
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'destinations' AND column_name = 'cost_level') THEN
+            ALTER TABLE destinations ADD COLUMN cost_level TEXT;
+          END IF;
         END $$;
       `);
       
       // Ensure existing data is marked as live
       await p.query("UPDATE destinations SET status = 'live' WHERE status IS NULL");
+      // Sync alias columns from canonical columns
+      await p.query(`
+        UPDATE destinations SET solo_score = solo_friendly_rating WHERE solo_score IS NULL AND solo_friendly_rating IS NOT NULL;
+        UPDATE destinations SET cost_level = budget_level WHERE cost_level IS NULL AND budget_level IS NOT NULL;
+      `);
     } catch (migErr) {
       logger.warn('[DB] destinations migration note:', migErr.message);
+    }
+
+    // Migration: add missing columns to existing tables
+    try {
+      await p.query(`
+        DO $$
+        BEGIN
+          -- reviews: add destination_id FK for referential integrity
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'reviews' AND column_name = 'destination_id') THEN
+            ALTER TABLE reviews ADD COLUMN destination_id INTEGER REFERENCES destinations(id) ON DELETE SET NULL;
+          END IF;
+
+          -- places: add status and rating columns
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'places' AND column_name = 'status') THEN
+            ALTER TABLE places ADD COLUMN status TEXT DEFAULT 'saved' CHECK(status IN ('saved', 'visited', 'skipped'));
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'places' AND column_name = 'rating') THEN
+            ALTER TABLE places ADD COLUMN rating NUMERIC CHECK(rating >= 0 AND rating <= 5);
+          END IF;
+
+          -- ai_usage: add per-query cost column
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_usage' AND column_name = 'cost_usd') THEN
+            ALTER TABLE ai_usage ADD COLUMN cost_usd NUMERIC;
+          END IF;
+
+          -- itinerary_versions: add diff column
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'itinerary_versions' AND column_name = 'diff') THEN
+            ALTER TABLE itinerary_versions ADD COLUMN diff TEXT;
+          END IF;
+
+          -- packing_items: add weight_grams and status columns
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'packing_items' AND column_name = 'weight_grams') THEN
+            ALTER TABLE packing_items ADD COLUMN weight_grams NUMERIC;
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'packing_items' AND column_name = 'status') THEN
+            ALTER TABLE packing_items ADD COLUMN status TEXT DEFAULT 'unpacked' CHECK(status IN ('unpacked', 'packed', 'left_behind'));
+          END IF;
+        END $$;
+      `);
+    } catch (migErr) {
+      logger.warn('[DB] column migration note:', migErr.message);
+    }
+
+    // Create trip_places view as spec-compliant alias for the places table
+    try {
+      await p.query(`
+        CREATE OR REPLACE VIEW trip_places AS SELECT * FROM places;
+      `);
+    } catch (migErr) {
+      logger.warn('[DB] trip_places view note:', migErr.message);
     }
 
     logger.info('[DB] PostgreSQL database initialized successfully');

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "notion": {
+      "type": "remote",
+      "enabled": true,
+      "url": "https://mcp.notion.com/mcp",
+      "oauth": {}
+    },
+    "stripe": {
+      "type": "remote",
+      "enabled": true,
+      "url": "https://mcp.stripe.com",
+      "oauth": {}
+    },
+    "chrome-devtools": {
+      "type": "local",
+      "enabled": true,
+      "command": [
+        "npx",
+        "-y",
+        "chrome-devtools-mcp@latest",
+        "--autoConnect"
+      ],
+      "environment": {
+        "HOME": "C:\\Users\\oclew"
+      }
+    }
+  }
+}

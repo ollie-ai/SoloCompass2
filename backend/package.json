@@ -1,0 +1,52 @@
+{
+  "name": "solocompass-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js",
+    "test:watch": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js --watch",
+    "test:coverage": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js --coverage"
+  },
+  "dependencies": {
+    "@infisical/sdk": "^5.0.0",
+    "@notionhq/client": "^5.17.0",
+    "axios": "^1.14.0",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^8.3.2",
+    "express-validator": "^7.3.1",
+    "fast-xml-parser": "^5.5.9",
+    "firebase-admin": "^13.7.0",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "multer": "^2.1.1",
+    "node-fetch": "^3.3.2",
+    "passport": "^0.7.0",
+    "passport-github2": "^0.1.12",
+    "passport-google-oauth20": "^2.0.0",
+    "pdfkit": "^0.18.0",
+    "pg": "^8.20.0",
+    "pg-pool": "^3.13.0",
+    "resend": "^6.9.4",
+    "sanitize-html": "^2.13.0",
+    "stripe": "^21.0.1",
+    "twilio": "^5.13.1",
+    "uuid": "^13.0.0",
+    "winston": "^3.19.0",
+    "winston-daily-rotate-file": "^5.0.0",
+    "ws": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/jest": "30.0.0",
+    "@types/supertest": "7.2.0",
+    "jest": "30.3.0",
+    "jest-environment-jsdom": "30.3.0",
+    "supertest": "7.2.2"
+  }
+}

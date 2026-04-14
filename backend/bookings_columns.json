@@ -1,0 +1,66 @@
+Fetching secrets from Infisical...
+Secrets loaded from Infisical.
+COLUMN_DATA_START
+[
+  {
+    "column_name": "id",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "trip_id",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "user_id",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "type",
+    "data_type": "character varying"
+  },
+  {
+    "column_name": "provider",
+    "data_type": "character varying"
+  },
+  {
+    "column_name": "confirmation_number",
+    "data_type": "character varying"
+  },
+  {
+    "column_name": "departure_location",
+    "data_type": "character varying"
+  },
+  {
+    "column_name": "arrival_location",
+    "data_type": "character varying"
+  },
+  {
+    "column_name": "departure_datetime",
+    "data_type": "timestamp without time zone"
+  },
+  {
+    "column_name": "arrival_datetime",
+    "data_type": "timestamp without time zone"
+  },
+  {
+    "column_name": "cost",
+    "data_type": "numeric"
+  },
+  {
+    "column_name": "currency",
+    "data_type": "character varying"
+  },
+  {
+    "column_name": "notes",
+    "data_type": "text"
+  },
+  {
+    "column_name": "created_at",
+    "data_type": "timestamp without time zone"
+  },
+  {
+    "column_name": "updated_at",
+    "data_type": "timestamp without time zone"
+  }
+]
+COLUMN_DATA_END

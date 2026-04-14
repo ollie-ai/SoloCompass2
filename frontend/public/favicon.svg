@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title>SoloCompass</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#0f766e" />
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#bg)" />
+  <circle cx="64" cy="64" r="34" fill="#ffffff" />
+  <circle cx="64" cy="64" r="26" fill="none" stroke="#10b981" stroke-width="6" />
+  <path d="M64 35 78 71 64 61 50 71Z" fill="#10b981" />
+  <path d="M64 93 74 58 64 67 54 58Z" fill="#0f172a" />
+  <circle cx="64" cy="64" r="5" fill="#34d399" />
+</svg>

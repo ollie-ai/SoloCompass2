@@ -1,0 +1,123 @@
+import express from 'express';
+import { authenticate } from '../middleware/auth.js';
+import { getFlightStatus, getFlightById } from '../services/flightService.js';
+import logger from '../services/logger.js';
+
+const router = express.Router();
+
+router.use(authenticate);
+
+const AVIATIONSTACK_API_KEY = process.env.AVIATIONSTACK_API_KEY;
+
+const requireApiKey = (req, res, next) => {
+  if (!AVIATIONSTACK_API_KEY) {
+    return res.status(503).json({
+      error: 'Flight API not configured',
+      message: 'AviationStack API key not set in environment'
+    });
+  }
+  next();
+};
+
+router.use(requireApiKey);
+
+/**
+ * GET /flights/search?flight_number=BA123&date=2026-04-15
+ * Search for flight status by flight number and date
+ */
+router.get('/search', async (req, res) => {
+  try {
+    const { flight_number, date } = req.query;
+
+    if (!flight_number) {
+      return res.status(400).json({
+        error: 'Missing flight number',
+        message: 'flight_number query parameter is required'
+      });
+    }
+
+    if (!date) {
+      return res.status(400).json({
+        error: 'Missing date',
+        message: 'date query parameter is required (format: YYYY-MM-DD)'
+      });
+    }
+
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(date)) {
+      return res.status(400).json({
+        error: 'Invalid date format',
+        message: 'Date must be in YYYY-MM-DD format'
+      });
+    }
+
+    const flight = await getFlightStatus(flight_number, date, AVIATIONSTACK_API_KEY);
+
+    if (!flight) {
+      return res.status(404).json({
+        error: 'Flight not found',
+        message: `No flight found for ${flight_number} on ${date}`
+      });
+    }
+
+    res.json({ success: true, data: flight });
+  } catch (error) {
+    logger.error(`[Flights] Search failed: ${error.response?.data || error.message}`);
+
+    if (error.response?.status === 404) {
+      return res.status(404).json({
+        error: 'Flight not found',
+        message: 'No flight found matching the given criteria'
+      });
+    }
+
+    if (error.response?.data?.error) {
+      return res.status(400).json({
+        error: 'Flight lookup failed',
+        message: error.response.data.error.message
+      });
+    }
+
+    res.status(500).json({
+      error: 'Flight search failed',
+      message: 'Failed to fetch flight information'
+    });
+  }
+});
+
+/**
+ * GET /flights/:id/status
+ * Get flight status by flight ID
+ */
+router.get('/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const flight = await getFlightById(id, AVIATIONSTACK_API_KEY);
+
+    if (!flight) {
+      return res.status(404).json({
+        error: 'Flight not found',
+        message: 'No flight found with the given ID'
+      });
+    }
+
+    res.json({ success: true, data: flight });
+  } catch (error) {
+    logger.error(`[Flights] Status fetch failed: ${error.response?.data || error.message}`);
+
+    if (error.response?.status === 404) {
+      return res.status(404).json({
+        error: 'Flight not found',
+        message: 'No flight found with the given ID'
+      });
+    }
+
+    res.status(500).json({
+      error: 'Flight status fetch failed',
+      message: 'Failed to fetch flight status'
+    });
+  }
+});
+
+export default router;

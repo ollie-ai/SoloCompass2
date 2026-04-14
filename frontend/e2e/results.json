@@ -1,0 +1,1190 @@
+{
+  "config": {
+    "configFile": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\playwright.config.js",
+    "rootDir": "D:/HELIOS_SYSTEM/HELIOS/projects/SoloCompass V1 Beta/frontend/e2e/suites",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 14
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "D:/HELIOS_SYSTEM/HELIOS/projects/SoloCompass V1 Beta/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 14
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "D:/HELIOS_SYSTEM/HELIOS/projects/SoloCompass V1 Beta/frontend/e2e/suites",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.spec.js"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "D:/HELIOS_SYSTEM/HELIOS/projects/SoloCompass V1 Beta/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 14
+        },
+        "id": "webkit",
+        "name": "webkit",
+        "testDir": "D:/HELIOS_SYSTEM/HELIOS/projects/SoloCompass V1 Beta/frontend/e2e/suites",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.spec.js"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "D:/HELIOS_SYSTEM/HELIOS/projects/SoloCompass V1 Beta/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 14
+        },
+        "id": "Mobile Safari",
+        "name": "Mobile Safari",
+        "testDir": "D:/HELIOS_SYSTEM/HELIOS/projects/SoloCompass V1 Beta/frontend/e2e/suites",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.spec.js"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "D:/HELIOS_SYSTEM/HELIOS/projects/SoloCompass V1 Beta/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 14
+        },
+        "id": "Mobile Chrome",
+        "name": "Mobile Chrome",
+        "testDir": "D:/HELIOS_SYSTEM/HELIOS/projects/SoloCompass V1 Beta/frontend/e2e/suites",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.spec.js"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.59.1",
+    "workers": 14,
+    "webServer": {
+      "command": "npm run dev",
+      "url": "http://localhost:5177",
+      "reuseExistingServer": true,
+      "timeout": 120000
+    }
+  },
+  "suites": [
+    {
+      "title": "01_auth.spec.js",
+      "file": "01_auth.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Suite 1: Authentication & Onboarding",
+          "file": "01_auth.spec.js",
+          "line": 4,
+          "column": 6,
+          "specs": [
+            {
+              "title": "AUTH-001: Register requires secure password",
+              "ok": false,
+              "tags": [
+                "auth",
+                "p1"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "timedOut",
+                      "duration": 32544,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\pages\\AuthPage.js",
+                            "column": 29,
+                            "line": 36
+                          },
+                          "message": "Error: locator.fill: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByLabel('Full Name')\u001b[22m\n\n\n   at ..\\pages\\AuthPage.js:36\n\n  34 |\n  35 |   async register(name, email, password) {\n> 36 |     await this.regNameInput.fill(name);\n     |                             ^\n  37 |     await this.regEmailInput.fill(email);\n  38 |     await this.regPasswordInput.fill(password);\n  39 |     await this.regSubmitBtn.click();\n    at AuthPage.register (D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\pages\\AuthPage.js:36:29)\n    at D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js:16:20"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-05T15:54:05.475Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-4bc5b-er-requires-secure-password-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-4bc5b-er-requires-secure-password-chromium\\video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-4bc5b-er-requires-secure-password-chromium\\error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "e32577aa700a93aa93d8-3ec36c2e161ce319a7d0",
+              "file": "01_auth.spec.js",
+              "line": 11,
+              "column": 3
+            },
+            {
+              "title": "AUTH-002: Register with duplicate email",
+              "ok": false,
+              "tags": [
+                "auth",
+                "p1"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "timedOut",
+                      "duration": 32694,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\pages\\AuthPage.js",
+                            "column": 29,
+                            "line": 36
+                          },
+                          "message": "TimeoutError: locator.fill: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByLabel('Full Name')\u001b[22m\n\n\n   at ..\\pages\\AuthPage.js:36\n\n  34 |\n  35 |   async register(name, email, password) {\n> 36 |     await this.regNameInput.fill(name);\n     |                             ^\n  37 |     await this.regEmailInput.fill(email);\n  38 |     await this.regPasswordInput.fill(password);\n  39 |     await this.regSubmitBtn.click();\n    at AuthPage.register (D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\pages\\AuthPage.js:36:29)\n    at D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js:26:20"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-05T15:54:05.427Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-f924f-gister-with-duplicate-email-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-f924f-gister-with-duplicate-email-chromium\\video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-f924f-gister-with-duplicate-email-chromium\\error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "e32577aa700a93aa93d8-841eba23c09c7ae5798c",
+              "file": "01_auth.spec.js",
+              "line": 21,
+              "column": 3
+            },
+            {
+              "title": "AUTH-003: Register with weak password (too short)",
+              "ok": false,
+              "tags": [
+                "auth",
+                "p1"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "timedOut",
+                      "duration": 32564,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\pages\\AuthPage.js",
+                            "column": 29,
+                            "line": 36
+                          },
+                          "message": "Error: locator.fill: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByLabel('Full Name')\u001b[22m\n\n\n   at ..\\pages\\AuthPage.js:36\n\n  34 |\n  35 |   async register(name, email, password) {\n> 36 |     await this.regNameInput.fill(name);\n     |                             ^\n  37 |     await this.regEmailInput.fill(email);\n  38 |     await this.regPasswordInput.fill(password);\n  39 |     await this.regSubmitBtn.click();\n    at AuthPage.register (D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\pages\\AuthPage.js:36:29)\n    at D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js:35:20"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-05T15:54:05.489Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-0e91f-th-weak-password-too-short--chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-0e91f-th-weak-password-too-short--chromium\\video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-0e91f-th-weak-password-too-short--chromium\\error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "e32577aa700a93aa93d8-1754e926ba8427adcde7",
+              "file": "01_auth.spec.js",
+              "line": 31,
+              "column": 3
+            },
+            {
+              "title": "AUTH-004: Register with empty fields",
+              "ok": false,
+              "tags": [
+                "auth",
+                "p1"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 3,
+                      "status": "timedOut",
+                      "duration": 32637,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js",
+                            "column": 70,
+                            "line": 45
+                          },
+                          "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: /initialize|register/i })\u001b[22m\n\n\n  43 |     \n  44 |     // Click register without filling any fields\n> 45 |     await page.getByRole('button', { name: /initialize|register/i }).click();\n     |                                                                      ^\n  46 |     \n  47 |     // Check for validation messages\n  48 |     const nameError = page.locator('text=Name is required').or(page.locator('text=name is required'));\n    at D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js:45:70"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-05T15:54:05.442Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-97cf9--Register-with-empty-fields-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-97cf9--Register-with-empty-fields-chromium\\video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-97cf9--Register-with-empty-fields-chromium\\error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "e32577aa700a93aa93d8-722025a0bb798a84440c",
+              "file": "01_auth.spec.js",
+              "line": 40,
+              "column": 3
+            },
+            {
+              "title": "AUTH-005: Register with invalid email format",
+              "ok": false,
+              "tags": [
+                "auth",
+                "p1"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 4,
+                      "status": "timedOut",
+                      "duration": 32559,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\pages\\AuthPage.js",
+                            "column": 29,
+                            "line": 36
+                          },
+                          "message": "Error: locator.fill: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByLabel('Full Name')\u001b[22m\n\n\n   at ..\\pages\\AuthPage.js:36\n\n  34 |\n  35 |   async register(name, email, password) {\n> 36 |     await this.regNameInput.fill(name);\n     |                             ^\n  37 |     await this.regEmailInput.fill(email);\n  38 |     await this.regPasswordInput.fill(password);\n  39 |     await this.regSubmitBtn.click();\n    at AuthPage.register (D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\pages\\AuthPage.js:36:29)\n    at D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js:59:20"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-05T15:54:05.458Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-263fc-r-with-invalid-email-format-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-263fc-r-with-invalid-email-format-chromium\\video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-263fc-r-with-invalid-email-format-chromium\\error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "e32577aa700a93aa93d8-e0c39aa9f23219cf0727",
+              "file": "01_auth.spec.js",
+              "line": 55,
+              "column": 3
+            },
+            {
+              "title": "AUTH-006: Successful Login redirects to dashboard",
+              "ok": false,
+              "tags": [
+                "auth",
+                "p1"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 5,
+                      "status": "timedOut",
+                      "duration": 30242,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\pages\\AuthPage.js",
+                            "column": 31,
+                            "line": 32
+                          },
+                          "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Access Travel DNA' })\u001b[22m\n\n\n   at ..\\pages\\AuthPage.js:32\n\n  30 |     await this.emailInput.fill(email);\n  31 |     await this.passwordInput.fill(password);\n> 32 |     await this.loginSubmitBtn.click();\n     |                               ^\n  33 |   }\n  34 |\n  35 |   async register(name, email, password) {\n    at AuthPage.login (D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\pages\\AuthPage.js:32:31)\n    at D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js:68:5"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-05T15:54:05.488Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-db76d-ogin-redirects-to-dashboard-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-db76d-ogin-redirects-to-dashboard-chromium\\video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-db76d-ogin-redirects-to-dashboard-chromium\\error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "e32577aa700a93aa93d8-202595071ca00c6abf10",
+              "file": "01_auth.spec.js",
+              "line": 64,
+              "column": 3
+            },
+            {
+              "title": "AUTH-007: Login with valid credentials",
+              "ok": false,
+              "tags": [
+                "auth",
+                "p1"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 6,
+                      "status": "timedOut",
+                      "duration": 30240,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\pages\\AuthPage.js",
+                            "column": 31,
+                            "line": 32
+                          },
+                          "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Access Travel DNA' })\u001b[22m\n\n\n   at ..\\pages\\AuthPage.js:32\n\n  30 |     await this.emailInput.fill(email);\n  31 |     await this.passwordInput.fill(password);\n> 32 |     await this.loginSubmitBtn.click();\n     |                               ^\n  33 |   }\n  34 |\n  35 |   async register(name, email, password) {\n    at AuthPage.login (D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\pages\\AuthPage.js:32:31)\n    at D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js:78:5"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-05T15:54:05.504Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-c1c64-ogin-with-valid-credentials-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-c1c64-ogin-with-valid-credentials-chromium\\video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-c1c64-ogin-with-valid-credentials-chromium\\error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "e32577aa700a93aa93d8-2493408d73229fbc8ef7",
+              "file": "01_auth.spec.js",
+              "line": 74,
+              "column": 3
+            },
+            {
+              "title": "AUTH-008: Failed Login shows invalid credentials",
+              "ok": false,
+              "tags": [
+                "auth",
+                "p1"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 7,
+                      "status": "timedOut",
+                      "duration": 30354,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\pages\\AuthPage.js",
+                            "column": 31,
+                            "line": 32
+                          },
+                          "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Access Travel DNA' })\u001b[22m\n\n\n   at ..\\pages\\AuthPage.js:32\n\n  30 |     await this.emailInput.fill(email);\n  31 |     await this.passwordInput.fill(password);\n> 32 |     await this.loginSubmitBtn.click();\n     |                               ^\n  33 |   }\n  34 |\n  35 |   async register(name, email, password) {\n    at AuthPage.login (D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\pages\\AuthPage.js:32:31)\n    at D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js:88:5"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-05T15:54:05.519Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-f063b-n-shows-invalid-credentials-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-f063b-n-shows-invalid-credentials-chromium\\video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-f063b-n-shows-invalid-credentials-chromium\\error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "e32577aa700a93aa93d8-698eb2ffdf81f64e2d32",
+              "file": "01_auth.spec.js",
+              "line": 84,
+              "column": 3
+            },
+            {
+              "title": "AUTH-009: Login with non-existent email",
+              "ok": false,
+              "tags": [
+                "auth",
+                "p1"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 8,
+                      "parallelIndex": 8,
+                      "status": "timedOut",
+                      "duration": 30241,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\pages\\AuthPage.js",
+                            "column": 31,
+                            "line": 32
+                          },
+                          "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Access Travel DNA' })\u001b[22m\n\n\n   at ..\\pages\\AuthPage.js:32\n\n  30 |     await this.emailInput.fill(email);\n  31 |     await this.passwordInput.fill(password);\n> 32 |     await this.loginSubmitBtn.click();\n     |                               ^\n  33 |   }\n  34 |\n  35 |   async register(name, email, password) {\n    at AuthPage.login (D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\pages\\AuthPage.js:32:31)\n    at D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js:97:5"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-05T15:54:05.490Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-4d903-gin-with-non-existent-email-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-4d903-gin-with-non-existent-email-chromium\\video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-4d903-gin-with-non-existent-email-chromium\\error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "e32577aa700a93aa93d8-83ca6f0b763d419a7c89",
+              "file": "01_auth.spec.js",
+              "line": 93,
+              "column": 3
+            },
+            {
+              "title": "AUTH-010: Login persists on refresh",
+              "ok": false,
+              "tags": [
+                "auth",
+                "p1"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 9,
+                      "parallelIndex": 9,
+                      "status": "timedOut",
+                      "duration": 30314,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\pages\\AuthPage.js",
+                            "column": 31,
+                            "line": 32
+                          },
+                          "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Access Travel DNA' })\u001b[22m\n\n\n   at ..\\pages\\AuthPage.js:32\n\n  30 |     await this.emailInput.fill(email);\n  31 |     await this.passwordInput.fill(password);\n> 32 |     await this.loginSubmitBtn.click();\n     |                               ^\n  33 |   }\n  34 |\n  35 |   async register(name, email, password) {\n    at AuthPage.login (D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\pages\\AuthPage.js:32:31)\n    at D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js:106:5"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-05T15:54:05.534Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-27d3d-0-Login-persists-on-refresh-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-27d3d-0-Login-persists-on-refresh-chromium\\video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-27d3d-0-Login-persists-on-refresh-chromium\\error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "e32577aa700a93aa93d8-415707db1e6034a716da",
+              "file": "01_auth.spec.js",
+              "line": 102,
+              "column": 3
+            },
+            {
+              "title": "AUTH-011: Login redirects from protected routes",
+              "ok": true,
+              "tags": [
+                "auth",
+                "p1"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 10,
+                      "parallelIndex": 10,
+                      "status": "passed",
+                      "duration": 5858,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-05T15:54:05.533Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "e32577aa700a93aa93d8-7fa50cc845a1c6354699",
+              "file": "01_auth.spec.js",
+              "line": 117,
+              "column": 3
+            },
+            {
+              "title": "AUTH-012: Google OAuth login button exists",
+              "ok": true,
+              "tags": [
+                "auth",
+                "p1"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 11,
+                      "parallelIndex": 11,
+                      "status": "passed",
+                      "duration": 5491,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-05T15:54:05.534Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "e32577aa700a93aa93d8-3d9c46cc5f387152e85f",
+              "file": "01_auth.spec.js",
+              "line": 125,
+              "column": 3
+            },
+            {
+              "title": "AUTH-014: Request password reset",
+              "ok": false,
+              "tags": [
+                "auth",
+                "p1"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 12,
+                      "parallelIndex": 12,
+                      "status": "timedOut",
+                      "duration": 32121,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js",
+                            "column": 44,
+                            "line": 137
+                          },
+                          "message": "Error: locator.fill: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByLabel('Email Address')\u001b[22m\n\n\n  135 |     await page.goto('/forgot-password');\n  136 |     \n> 137 |     await page.getByLabel('Email Address').fill('admin@solocompass.test');\n      |                                            ^\n  138 |     await page.getByRole('button', { name: /send|reset|submit/i }).click();\n  139 |     \n  140 |     // Should show success message\n    at D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js:137:44"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-05T15:54:05.562Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-d0f09--014-Request-password-reset-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-d0f09--014-Request-password-reset-chromium\\video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-d0f09--014-Request-password-reset-chromium\\error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "e32577aa700a93aa93d8-2102d09e39b96f9cc961",
+              "file": "01_auth.spec.js",
+              "line": 134,
+              "column": 3
+            },
+            {
+              "title": "AUTH-018: Logout clears session",
+              "ok": false,
+              "tags": [
+                "auth",
+                "p1"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 13,
+                      "parallelIndex": 13,
+                      "status": "timedOut",
+                      "duration": 30253,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\pages\\AuthPage.js",
+                            "column": 31,
+                            "line": 32
+                          },
+                          "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Access Travel DNA' })\u001b[22m\n\n\n   at ..\\pages\\AuthPage.js:32\n\n  30 |     await this.emailInput.fill(email);\n  31 |     await this.passwordInput.fill(password);\n> 32 |     await this.loginSubmitBtn.click();\n     |                               ^\n  33 |   }\n  34 |\n  35 |   async register(name, email, password) {\n    at AuthPage.login (D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\pages\\AuthPage.js:32:31)\n    at D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js:148:5"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-05T15:54:05.577Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-6540c-H-018-Logout-clears-session-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-6540c-H-018-Logout-clears-session-chromium\\video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-6540c-H-018-Logout-clears-session-chromium\\error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "e32577aa700a93aa93d8-f964bcc8ce63aa8b481d",
+              "file": "01_auth.spec.js",
+              "line": 144,
+              "column": 3
+            },
+            {
+              "title": "AUTH-021: Complete quiz",
+              "ok": false,
+              "tags": [
+                "auth",
+                "p1"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 11,
+                      "parallelIndex": 11,
+                      "status": "failed",
+                      "duration": 1543,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('text=Travel DNA')\nExpected: visible\nError: strict mode violation: locator('text=Travel DNA') resolved to 2 elements:\n    1) <p class=\"text-sm text-slate-300 font-medium leading-relaxed\">…</p> aka getByText('SoloCompass requires')\n    2) <h1 class=\"text-2xl font-black text-brand-deep\">Discover Your Travel DNA</h1> aka getByRole('heading', { name: 'Discover Your Travel DNA' })\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('text=Travel DNA')\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('text=Travel DNA')\nExpected: visible\nError: strict mode violation: locator('text=Travel DNA') resolved to 2 elements:\n    1) <p class=\"text-sm text-slate-300 font-medium leading-relaxed\">…</p> aka getByText('SoloCompass requires')\n    2) <h1 class=\"text-2xl font-black text-brand-deep\">Discover Your Travel DNA</h1> aka getByRole('heading', { name: 'Discover Your Travel DNA' })\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('text=Travel DNA')\u001b[22m\n\n    at D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js:170:51",
+                        "location": {
+                          "file": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js",
+                          "column": 51,
+                          "line": 170
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 168 |\u001b[39m     \n \u001b[90m 169 |\u001b[39m     \u001b[90m// Quiz should be visible without login\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 170 |\u001b[39m     \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m'text=Travel DNA'\u001b[39m))\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                                                   \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 171 |\u001b[39m     \n \u001b[90m 172 |\u001b[39m     \u001b[90m// Answer all 7 questions (data-driven approach)\u001b[39m\n \u001b[90m 173 |\u001b[39m     \u001b[36mconst\u001b[39m questions \u001b[33m=\u001b[39m \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'[data-question]'\u001b[39m)\u001b[33m.\u001b[39mcount()\u001b[33m;\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js",
+                            "column": 51,
+                            "line": 170
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('text=Travel DNA')\nExpected: visible\nError: strict mode violation: locator('text=Travel DNA') resolved to 2 elements:\n    1) <p class=\"text-sm text-slate-300 font-medium leading-relaxed\">…</p> aka getByText('SoloCompass requires')\n    2) <h1 class=\"text-2xl font-black text-brand-deep\">Discover Your Travel DNA</h1> aka getByRole('heading', { name: 'Discover Your Travel DNA' })\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('text=Travel DNA')\u001b[22m\n\n\n  168 |     \n  169 |     // Quiz should be visible without login\n> 170 |     await expect(page.locator('text=Travel DNA')).toBeVisible();\n      |                                                   ^\n  171 |     \n  172 |     // Answer all 7 questions (data-driven approach)\n  173 |     const questions = await page.locator('[data-question]').count();\n    at D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js:170:51"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-05T15:54:11.756Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-4014f-ding-AUTH-021-Complete-quiz-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-4014f-ding-AUTH-021-Complete-quiz-chromium\\video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-4014f-ding-AUTH-021-Complete-quiz-chromium\\error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js",
+                        "column": 51,
+                        "line": 170
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "e32577aa700a93aa93d8-2d3f01de328e282e17ef",
+              "file": "01_auth.spec.js",
+              "line": 166,
+              "column": 3
+            },
+            {
+              "title": "AUTH-024: Quiz accessible without auth",
+              "ok": false,
+              "tags": [
+                "auth",
+                "p1"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 10,
+                      "parallelIndex": 10,
+                      "status": "failed",
+                      "duration": 1494,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('text=Travel DNA')\nExpected: visible\nError: strict mode violation: locator('text=Travel DNA') resolved to 2 elements:\n    1) <p class=\"text-sm text-slate-300 font-medium leading-relaxed\">…</p> aka getByText('SoloCompass requires')\n    2) <h1 class=\"text-2xl font-black text-brand-deep\">Discover Your Travel DNA</h1> aka getByRole('heading', { name: 'Discover Your Travel DNA' })\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('text=Travel DNA')\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('text=Travel DNA')\nExpected: visible\nError: strict mode violation: locator('text=Travel DNA') resolved to 2 elements:\n    1) <p class=\"text-sm text-slate-300 font-medium leading-relaxed\">…</p> aka getByText('SoloCompass requires')\n    2) <h1 class=\"text-2xl font-black text-brand-deep\">Discover Your Travel DNA</h1> aka getByRole('heading', { name: 'Discover Your Travel DNA' })\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('text=Travel DNA')\u001b[22m\n\n    at D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js:203:51",
+                        "location": {
+                          "file": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js",
+                          "column": 51,
+                          "line": 203
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 201 |\u001b[39m     \n \u001b[90m 202 |\u001b[39m     \u001b[90m// Quiz should load and be interactable\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 203 |\u001b[39m     \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m'text=Travel DNA'\u001b[39m))\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                                                   \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 204 |\u001b[39m     \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mgetByRole(\u001b[32m'button'\u001b[39m\u001b[33m,\u001b[39m { name\u001b[33m:\u001b[39m \u001b[35m/start|begin/i\u001b[39m })\u001b[33m.\u001b[39mor(page\u001b[33m.\u001b[39mgetByRole(\u001b[32m'button'\u001b[39m\u001b[33m,\u001b[39m { name\u001b[33m:\u001b[39m \u001b[35m/next/i\u001b[39m }))\u001b[33m.\u001b[39mfirst())\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m 205 |\u001b[39m   })\u001b[33m;\u001b[39m\n \u001b[90m 206 |\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js",
+                            "column": 51,
+                            "line": 203
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('text=Travel DNA')\nExpected: visible\nError: strict mode violation: locator('text=Travel DNA') resolved to 2 elements:\n    1) <p class=\"text-sm text-slate-300 font-medium leading-relaxed\">…</p> aka getByText('SoloCompass requires')\n    2) <h1 class=\"text-2xl font-black text-brand-deep\">Discover Your Travel DNA</h1> aka getByRole('heading', { name: 'Discover Your Travel DNA' })\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('text=Travel DNA')\u001b[22m\n\n\n  201 |     \n  202 |     // Quiz should load and be interactable\n> 203 |     await expect(page.locator('text=Travel DNA')).toBeVisible();\n      |                                                   ^\n  204 |     await expect(page.getByRole('button', { name: /start|begin/i }).or(page.getByRole('button', { name: /next/i })).first()).toBeVisible();\n  205 |   });\n  206 |\n    at D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js:203:51"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-05T15:54:12.156Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-89516-uiz-accessible-without-auth-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-89516-uiz-accessible-without-auth-chromium\\video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\test-results\\01_auth-Suite-1-Authentica-89516-uiz-accessible-without-auth-chromium\\error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "D:\\HELIOS_SYSTEM\\HELIOS\\projects\\SoloCompass V1 Beta\\frontend\\e2e\\suites\\01_auth.spec.js",
+                        "column": 51,
+                        "line": 203
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "e32577aa700a93aa93d8-282c0fa1d265ed39d70c",
+              "file": "01_auth.spec.js",
+              "line": 196,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-04-05T15:54:04.331Z",
+    "duration": 34564.541999999994,
+    "expected": 2,
+    "skipped": 0,
+    "unexpected": 14,
+    "flaky": 0
+  }
+}

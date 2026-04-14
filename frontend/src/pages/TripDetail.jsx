@@ -1,0 +1,2272 @@
+import { useState, useEffect, memo } from 'react';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
+import api, { 
+  getTripAccommodation, 
+  createTripAccommodation, 
+  updateTripAccommodation, 
+  deleteTripAccommodation,
+  getTripBookings, 
+  createTripBooking, 
+  updateTripBooking, 
+  deleteTripBooking,
+  getTripDocuments, 
+  createTripDocument, 
+  deleteTripDocument,
+  getTripPlaces, 
+  createTripPlace, 
+  updateTripPlace, 
+  deleteTripPlace,
+  exportTripPDF,
+  downloadTripDocument
+} from '../lib/api';
+import toast from 'react-hot-toast';
+import { getErrorMessage } from '../lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
+import Button from '../components/Button';
+import Loading from '../components/Loading';
+import Skeleton from '../components/Skeleton';
+import { useAuthStore } from '../stores/authStore';
+import { trackEvent } from '../lib/telemetry';
+import { 
+  ArrowLeft, 
+  MapPin, 
+  Calendar, 
+  PoundSterling, 
+  Clock, 
+  Trash2, 
+  Sparkles, 
+  Info, 
+  ChevronRight,
+  Navigation,
+  Utensils,
+  Camera,
+  Moon,
+  Zap,
+  Coffee,
+  CheckCircle2,
+  Printer,
+  Download,
+  ExternalLink,
+  ShieldCheck,
+  Package,
+  Wallet,
+  Plus,
+  Edit2,
+  Edit3,
+  Loader2,
+  X,
+  Building,
+  FileText,
+  Bookmark,
+  Ticket,
+  Plane,
+  Train,
+  Bus,
+  AlertCircle,
+  Hotel,
+  Home,
+  Bed,
+  File,
+  CreditCard,
+  Armchair,
+  Users
+} from 'lucide-react';
+import PackingList from '../components/PackingList';
+import BudgetTracker from '../components/BudgetTracker';
+import FlightStatusWidget from '../components/FlightStatus';
+import FeatureGate from '../components/FeatureGate';
+import WeatherWidget from '../components/WeatherWidget';
+import CurrencyConverter from '../components/CurrencyConverter';
+import PlacesSearch from '../components/PlacesSearch';
+import TransitDirections from '../components/TransitDirections';
+import AffiliateLinks from '../components/AffiliateLinks';
+import SafetyCheckIn from '../components/SafetyCheckIn';
+import SoloSafetyHub from '../components/SoloSafetyHub';
+import { FEATURES } from '../config/features';
+// import TripItinerary from '../components/trip/TripItinerary';
+// import TripSidebar from '../components/trip/TripSidebar';
+// import { AccommodationForm, BookingForm, DocumentForm } from '../components/trip/TripForms';
+
+function TripDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuthStore();
+  const [trip, setTrip] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [accessDenied, setAccessDenied] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [genStep, setGenStep] = useState(0);
+  const [showPackingList, setShowPackingList] = useState(false);
+  const [showBudget, setShowBudget] = useState(false);
+  const [showCheckIn, setShowCheckIn] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  
+  const [showAccommodation, setShowAccommodation] = useState(false);
+  const [showBookings, setShowBookings] = useState(false);
+  const [showDocuments, setShowDocuments] = useState(false);
+  const [showPlaces, setShowPlaces] = useState(false);
+  const [showEditTrip, setShowEditTrip] = useState(false);
+  const [showRegenerate, setShowRegenerate] = useState(false);
+  const [showVersions, setShowVersions] = useState(false);
+  const [versions, setVersions] = useState([]);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+
+  const [editTripForm, setEditTripForm] = useState({
+    name: '',
+    destination: '',
+    startDate: '',
+    endDate: '',
+    budget: 0,
+    notes: ''
+  });
+
+  const [regenerateForm, setRegenerateForm] = useState({
+    days: 7,
+    interests: [],
+    pace: 'moderate'
+  });
+  
+  const [accommodationForm, setAccommodationForm] = useState({
+    type: 'hotel',
+    name: '',
+    address: '',
+    confirmation: '',
+    checkIn: trip?.start_date?.split('T')[0] || '',
+    checkOut: trip?.end_date?.split('T')[0] || ''
+  });
+  
+  const [bookingForm, setBookingForm] = useState({
+    type: 'flight',
+    provider: '',
+    confirmation: '',
+    departureLocation: '',
+    arrivalLocation: '',
+    departureDate: trip?.start_date?.split('T')[0] || '',
+    arrivalDate: trip?.end_date?.split('T')[0] || '',
+    cost: '',
+    notes: ''
+  });
+  
+  const [documentForm, setDocumentForm] = useState({
+    type: 'passport',
+    name: '',
+    expiryDate: ''
+  });
+  
+  const [placeForm, setPlaceForm] = useState({
+    name: '',
+    address: '',
+    category: 'restaurant',
+    notes: '',
+    visited: false
+  });
+  
+  const [accommodations, setAccommodations] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [documents, setDocuments] = useState([]);
+  const [savedPlaces, setSavedPlaces] = useState([]);
+  const [contacts, setContacts] = useState([]);
+
+  const handleExportPDF = async () => {
+    setExporting(true);
+    try {
+      const blob = await exportTripPDF(id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${trip?.name || 'trip'}-itinerary.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('PDF export failed:', error);
+      window.print();
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleSafetyCheckIn = () => {
+    setShowCheckIn(true);
+  };
+
+  useEffect(() => {
+    fetchTrip();
+  }, [id]);
+
+  useEffect(() => {
+    if (trip && location.state?.autoGenerate && !trip.itinerary?.length && !generating) {
+      if (trip.generation_status === 'processing') {
+         setGenerating(true);
+         startPolling(id);
+      } else {
+         navigate(`/trips/${id}`, { replace: true, state: {} });
+         generateItinerary(trip);
+      }
+    } else if (trip?.generation_status === 'processing') {
+      setGenerating(true);
+      startPolling(id);
+    }
+  }, [trip, location.state]);
+
+  useEffect(() => {
+    if (showVersions) {
+      fetchVersions();
+    }
+  }, [showVersions]);
+
+  const steps = [
+    { title: "Analyzing Travel DNA", icon: <Sparkles className="text-brand-vibrant" /> },
+    { title: "Syncing Safety Advisories", icon: <ShieldCheck size={24} className="text-blue-500" /> },
+    { title: "Scouting Local Gems", icon: <MapPin size={24} className="text-brand-accent" /> },
+    { title: "Forging Your Roadmap", icon: <Navigation size={24} className="text-base-content" /> }
+  ];
+
+  useEffect(() => {
+    let interval;
+    if (generating) {
+      setGenStep(0);
+      interval = setInterval(() => {
+        setGenStep(prev => (prev < steps.length - 1 ? prev + 1 : prev));
+      }, 3500);
+    } else {
+      setGenStep(0);
+    }
+    return () => clearInterval(interval);
+  }, [generating]);
+
+  const fetchTrip = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get(`/trips/${id}`);
+      if (response.data?.data) {
+        setTrip(response.data.data);
+        trackEvent('view_trip_detail', { trip_id: id });
+        
+        const isOwner = user && response.data.data && (user.id === response.data.data.user_id || user.id === response.data.data.owner_id);
+        if (!isOwner) {
+          setAccessDenied(true);
+          setLoading(false);
+          return;
+        }
+        
+        setEditTripForm({
+          name: response.data.data.name,
+          destination: response.data.data.destination,
+          startDate: response.data.data.start_date?.split('T')[0] || '',
+          endDate: response.data.data.end_date?.split('T')[0] || '',
+          budget: response.data.data.budget || '',
+          notes: response.data.data.notes || ''
+        });
+        setRegenerateForm(prev => ({
+          ...prev,
+          days: trip?.itinerary?.length || 7
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to fetch trip:', error);
+      toast.error(getErrorMessage(error, 'Failed to load trip'));
+      navigate('/trips');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchVersions = async () => {
+    try {
+      const response = await api.get(`/trips/${id}/versions`);
+      if (response.data?.data) {
+        setVersions(response.data.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch versions:', error);
+    }
+  };
+
+  const handleRestoreVersion = async (versionId) => {
+    try {
+      await api.post(`/trips/${id}/versions/${versionId}/restore`);
+      toast.success('Itinerary version restored');
+      setShowVersions(false);
+      fetchTrip();
+    } catch (error) {
+      console.error('Failed to restore version:', error);
+      toast.error('Failed to restore version');
+    }
+  };
+
+  const handleEditTripSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await api.put(`/trips/${id}`, editTripForm);
+      toast.success('Trip updated successfully');
+      setShowEditTrip(false);
+      fetchTrip();
+    } catch (error) {
+      toast.error('Failed to update trip');
+    }
+  };
+
+  const handleRegenerateSubmit = async (e) => {
+    e.preventDefault();
+    if (!confirm('This will replace your current itinerary. Are you sure?')) return;
+    
+    try {
+      setIsRegenerating(true);
+      await api.post(`/trips/${id}/generate`, regenerateForm);
+      toast.success('Itinerary regeneration started!');
+      setShowRegenerate(false);
+      setGenerating(true);
+      startPolling(id);
+    } catch (error) {
+      setIsRegenerating(false);
+      toast.success('Failed to start regeneration');
+    }
+  };
+
+  const fetchAccommodations = async () => {
+    try {
+      const response = await getTripAccommodation(id);
+      if (response.data) setAccommodations(response.data);
+    } catch (error) {
+      console.error('Failed to fetch accommodations:', error);
+    }
+  };
+
+  const fetchBookings = async () => {
+    try {
+      const response = await getTripBookings(id);
+      if (response.data) setBookings(response.data);
+    } catch (error) {
+      console.error('Failed to fetch bookings:', error);
+    }
+  };
+
+  const fetchDocuments = async () => {
+    try {
+      const response = await getTripDocuments(id);
+      if (response.data) setDocuments(response.data);
+    } catch (error) {
+      console.error('Failed to fetch documents:', error);
+    }
+  };
+
+  const fetchContacts = async () => {
+    try {
+      const response = await api.get('/emergency-contacts');
+      if (response.data?.data?.contacts) setContacts(response.data.data.contacts);
+    } catch (error) {
+      console.error('Failed to fetch contacts:', error);
+    }
+  };
+
+  const fetchPlaces = async () => {
+    try {
+      const response = await getTripPlaces(id);
+      if (response.data) setSavedPlaces(response.data);
+    } catch (error) {
+      console.error('Failed to fetch saved places:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (trip) {
+      fetchAccommodations();
+      fetchBookings();
+      fetchDocuments();
+      fetchPlaces();
+      fetchContacts();
+    }
+  }, [trip]);
+
+  const updateStatus = async (status) => {
+    try {
+      await api.put(`/trips/${id}`, { status });
+      setTrip({ ...trip, status });
+      toast.success('Status updated');
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to update status'));
+    }
+  };
+
+  const startPolling = (tripId) => {
+    let attempts = 0;
+    const interval = setInterval(async () => {
+      try {
+        attempts++;
+        const res = await api.get(`/trips/${tripId}/status`);
+        const status = res.data.data.status;
+        
+        if (status === 'completed') {
+          clearInterval(interval);
+          setGenerating(false);
+          toast.success('Itinerary ready!');
+          fetchTrip();
+        } else if (status === 'failed') {
+          clearInterval(interval);
+          setGenerating(false);
+          toast.error('AI generation failed. Please try again.');
+        }
+        
+        if (attempts > 40) {
+          clearInterval(interval);
+          setGenerating(false);
+          toast.error('Generation taking longer than expected.');
+        }
+      } catch (err) {
+        clearInterval(interval);
+        setGenerating(false);
+      }
+    }, 3000);
+  };
+
+  const generateItinerary = async (tripData = trip) => {
+    setGenerating(true);
+    try {
+      let daysCount = 3; 
+      if (tripData?.start_date && tripData?.end_date) {
+        const diff = new Date(tripData.end_date) - new Date(tripData.start_date);
+        daysCount = Math.max(1, Math.round(diff / (1000 * 60 * 60 * 24)) + 1);
+      }
+
+      await api.post(`/trips/${id}/generate`, {
+        days: daysCount,
+        pace: 'balanced'
+      });
+      
+      startPolling(id);
+    } catch (error) {
+      console.error('Failed to generate:', error);
+      toast.error(getErrorMessage(error, 'Failed to initiate generation'));
+      setGenerating(false);
+    }
+  };
+
+  const deleteActivity = async (activityId) => {
+    if (!confirm('Remove this activity from your plan?')) return;
+    try {
+      await api.delete(`/trips/activities/${activityId}`);
+      toast.success('Activity removed');
+      fetchTrip();
+    } catch (error) {
+      toast.error('Failed to delete');
+    }
+  };
+
+  const [editingActivity, setEditingActivity] = useState(null);
+  const [showAddActivity, setShowAddActivity] = useState(false);
+  const [selectedDayId, setSelectedDayId] = useState(null);
+  const [activityForm, setActivityForm] = useState({
+    name: '',
+    type: 'Sightseeing',
+    location: '',
+    time: '',
+    durationHours: '',
+    cost: '',
+    notes: '',
+    bookingInfo: ''
+  });
+
+  const openEditActivity = (activity) => {
+    setEditingActivity(activity);
+    setActivityForm({
+      name: activity.name || '',
+      type: activity.type || 'Sightseeing',
+      location: activity.location || '',
+      time: activity.time || '',
+      durationHours: activity.duration_hours || '',
+      cost: activity.cost || '',
+      notes: activity.notes || '',
+      bookingInfo: activity.booking_info || ''
+    });
+  };
+
+  const openAddActivity = (dayId) => {
+    setSelectedDayId(dayId);
+    setActivityForm({
+      name: '',
+      type: 'Sightseeing',
+      location: '',
+      time: '',
+      durationHours: '',
+      cost: '',
+      notes: '',
+      bookingInfo: ''
+    });
+    setShowAddActivity(true);
+  };
+
+  const handleActivitySubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        ...activityForm,
+        durationHours: activityForm.durationHours ? Number(activityForm.durationHours) : null,
+        cost: activityForm.cost ? Number(activityForm.cost) : 0,
+      };
+
+      if (editingActivity) {
+        await api.put(`/trips/activities/${editingActivity.id}`, payload);
+        toast.success('Activity updated');
+      } else {
+        await api.post(`/trips/${id}/activities`, {
+          ...payload,
+          dayId: selectedDayId
+        });
+        toast.success('Activity added');
+      }
+      
+      setEditingActivity(null);
+      setShowAddActivity(false);
+      fetchTrip();
+    } catch (error) {
+      toast.error('Failed to save activity');
+    }
+  };
+
+  const handleAccommodationSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await createTripAccommodation(id, accommodationForm);
+      if (response.data) {
+        setAccommodations([...accommodations, response.data]);
+        toast.success('Accommodation added');
+      }
+      setAccommodationForm({ type: 'hotel', name: '', address: '', confirmation: '', checkIn: '', checkOut: '' });
+      setShowAccommodation(false);
+    } catch (error) {
+      toast.error('Failed to add accommodation');
+    }
+  };
+
+  const handleBookingSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await createTripBooking(id, bookingForm);
+      if (response.data) {
+        setBookings([...bookings, response.data]);
+        toast.success('Booking added');
+      }
+      setBookingForm({ type: 'flight', provider: '', confirmation: '', departureLocation: '', arrivalLocation: '', departureDate: '', arrivalDate: '', cost: '', currency: 'GBP' });
+      setShowBookings(false);
+    } catch (error) {
+      toast.error('Failed to add booking');
+    }
+  };
+
+  const handleDocumentSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await createTripDocument(id, documentForm);
+      if (response.data) {
+        setDocuments([...documents, response.data]);
+        toast.success('Document added');
+      }
+      setDocumentForm({ type: 'passport', name: '', expiryDate: '' });
+      setShowDocuments(false);
+    } catch (error) {
+      toast.error('Failed to add document');
+    }
+  };
+
+  const handlePlaceSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await createTripPlace(id, placeForm);
+      if (response.data) {
+        setSavedPlaces([...savedPlaces, response.data]);
+        toast.success('Place saved');
+      }
+      setPlaceForm({ name: '', address: '', category: 'restaurant', notes: '', visited: false });
+      setShowPlaces(false);
+    } catch (error) {
+      toast.error('Failed to save place');
+    }
+  };
+
+  const deleteAccommodation = async (id) => {
+    if (!confirm('Remove this accommodation?')) return;
+    try {
+      await deleteTripAccommodation(id);
+      setAccommodations(accommodations.filter(a => a.id !== id));
+      toast.success('Accommodation removed');
+    } catch (error) {
+      toast.error('Failed to delete accommodation');
+    }
+  };
+
+  const deleteBooking = async (id) => {
+    if (!confirm('Remove this booking?')) return;
+    try {
+      await deleteTripBooking(id);
+      setBookings(bookings.filter(b => b.id !== id));
+      toast.success('Booking removed');
+    } catch (error) {
+      toast.error('Failed to delete booking');
+    }
+  };
+
+  const deleteDocument = async (id) => {
+    if (!confirm('Remove this document?')) return;
+    try {
+      await deleteTripDocument(id);
+      setDocuments(documents.filter(d => d.id !== id));
+      toast.success('Document removed');
+    } catch (error) {
+      toast.error('Failed to delete document');
+    }
+  };
+
+  const downloadDocument = async (doc) => {
+    if (!doc.url) {
+      toast.error('No download available for this document');
+      return;
+    }
+    try {
+      const blob = await downloadTripDocument(doc.id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.name || 'document';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      if (doc.url) {
+        window.open(doc.url, '_blank');
+      }
+    }
+  };
+
+  const deletePlace = async (id) => {
+    if (!confirm('Remove this place?')) return;
+    try {
+      await deleteTripPlace(id);
+      setSavedPlaces(savedPlaces.filter(p => p.id !== id));
+      toast.success('Place removed');
+    } catch (error) {
+      toast.error('Failed to delete place');
+    }
+  };
+
+  const togglePlaceVisited = async (id) => {
+    const place = savedPlaces.find(p => p.id === id);
+    if (!place) return;
+    try {
+      await updateTripPlace(id, { visited: !place.visited });
+      setSavedPlaces(savedPlaces.map(p => p.id === id ? { ...p, visited: !p.visited } : p));
+    } catch (error) {
+      toast.error('Failed to update place');
+    }
+  };
+
+  const isExpiringSoon = (dateStr) => {
+    if (!dateStr) return false;
+    const expiry = new Date(dateStr);
+    const now = new Date();
+    const daysUntil = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+    return daysUntil > 0 && daysUntil <= 30;
+  };
+
+  const getAccommodationIcon = (type) => {
+    switch (type) {
+      case 'hotel': return <Hotel size={18} />;
+      case 'hostel': return <Bed size={18} />;
+      case 'airbnb': return <Home size={18} />;
+      case 'resort': return <Armchair size={18} />;
+      default: return <Building size={18} />;
+    }
+  };
+
+  const getBookingIcon = (type) => {
+    switch (type) {
+      case 'flight': return <Plane size={18} />;
+      case 'train': return <Train size={18} />;
+      case 'bus': return <Bus size={18} />;
+      case 'tour': return <Users size={18} />;
+      default: return <Ticket size={18} />;
+    }
+  };
+
+  const getDocumentIcon = (type) => {
+    switch (type) {
+      case 'passport': return <File size={18} />;
+      case 'visa': return <FileText size={18} />;
+      case 'insurance': return <ShieldCheck size={18} />;
+      case 'ticket': return <Ticket size={18} />;
+      default: return <FileText size={18} />;
+    }
+  };
+
+  const getPlaceIcon = (category) => {
+    switch (category) {
+      case 'restaurant': return <Utensils size={18} />;
+      case 'attraction': return <Camera size={18} />;
+      case 'cafe': return <Coffee size={18} />;
+      case 'bar': return <Moon size={18} />;
+      case 'shop': return <MapPin size={18} />;
+      default: return <Bookmark size={18} />;
+    }
+  };
+
+  const getStatusStyle = (status) => {
+    switch (status) {
+      case 'completed': return 'bg-success/20 text-success border-success/30';
+      case 'confirmed': return 'bg-sky-100 text-info border-info/30';
+      case 'cancelled': return 'bg-red-100 text-error border-error/30';
+      default: return 'bg-warning/20 text-warning border-warning/30';
+    }
+  };
+
+  const getActivityIcon = (type) => {
+    switch (type) {
+      case 'Sightseeing': return <Camera size={18} />;
+      case 'Food & Dining': return <Utensils size={18} />;
+      case 'Transport': return <Navigation size={18} />;
+      case 'Adventure': return <Zap size={18} />;
+      case 'Cultural': return <Info size={18} />;
+      case 'Relaxation': return <Coffee size={18} />;
+      case 'Nightlife': return <Moon size={18} />;
+      default: return <MapPin size={18} />;
+    }
+  };
+
+  const totalActivities = trip?.itinerary?.reduce((sum, day) => sum + (day.activities?.length || 0), 0) || 0;
+  const totalCost = trip?.itinerary?.reduce((sum, day) => 
+    sum + (day.activities?.reduce((daySum, act) => daySum + Number(act.cost || 0), 0) || 0), 0
+  ) || 0;
+
+  const handleAddFlightToTrip = async (flight) => {
+    try {
+      const activity = {
+        name: `${flight.airline} ${flight.flight_number}`,
+        type: 'Transport',
+        location: `${flight.departure?.iata} → ${flight.arrival?.iata}`,
+        time: flight.departure?.scheduled ? new Date(flight.departure.scheduled).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : 'TBD',
+        description: `${flight.departure?.airport} to ${flight.arrival?.airport}. Status: ${flight.status}. Terminal: ${flight.departure?.terminal || 'TBD'}, Gate: ${flight.departure?.gate || 'TBD'}`,
+        cost: 0
+      };
+      await api.post(`/trips/${id}/activities`, activity);
+      toast.success('Flight added to trip itinerary');
+      fetchTrip();
+    } catch (error) {
+      console.error('Failed to add flight:', error);
+      toast.error('Failed to add flight to trip');
+    }
+  };
+
+  if (!trip && !loading) return null;
+
+  if (accessDenied) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 py-12 animate-fade-in">
+        <div className="glass-card p-12 rounded-xl shadow-xl text-center max-w-md mx-auto mt-20">
+          <div className="w-20 h-20 bg-error/10 rounded-xl flex items-center justify-center mx-auto mb-6">
+            <AlertCircle size={40} className="text-error" />
+          </div>
+          <h2 className="text-2xl font-black text-base-content mb-4">Access Denied</h2>
+          <p className="text-base-content/60 font-medium mb-8">
+            You don't have permission to view this trip. Only the trip owner can access it.
+          </p>
+          <Link 
+            to="/trips" 
+            className="inline-flex items-center gap-2 px-6 py-3 bg-brand-vibrant text-white rounded-xl font-black hover:bg-brand-vibrant/90 transition-all"
+          >
+            <ArrowLeft size={18} /> Back to My Trips
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-6xl mx-auto px-4 py-12 animate-fade-in pb-32">
+      {/* Breadcrumbs & Actions */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+        <div className="space-y-4">
+          <Link to="/trips" className="group flex items-center gap-2 text-base-content/40 hover:text-base-content font-bold transition-colors">
+            <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" /> Back to Trips
+          </Link>
+          
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-4">
+              <h1 className="text-4xl font-black text-base-content tracking-tight">{trip?.name}</h1>
+              <button 
+                onClick={() => setShowEditTrip(true)}
+                className="p-2 text-base-content/20 hover:text-brand-vibrant hover:bg-brand-vibrant/5 rounded-xl transition-all"
+                title="Edit Trip Details"
+              >
+                <Edit3 size={20} />
+              </button>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2 px-3 py-1 bg-base-100 border border-base-content/10 rounded-full shadow-sm">
+                <MapPin size={14} className="text-brand-vibrant" />
+                <span className="text-sm font-bold text-base-content/60">{trip?.destination}</span>
+              </div>
+              
+              <div className="flex items-center gap-2 px-3 py-1 bg-base-100 border border-base-content/10 rounded-full shadow-sm">
+                <Calendar size={14} className="text-indigo-500" />
+                <span className="text-sm font-bold text-base-content/60">
+                  {trip?.start_date ? new Date(trip.start_date).toLocaleDateString() : 'TBD'} - {trip?.end_date ? new Date(trip.end_date).toLocaleDateString() : 'TBD'}
+                </span>
+              </div>
+
+              <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-sm ${getStatusStyle(trip?.status)}`}>
+                {trip?.status}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <Button 
+            onClick={() => setShowRegenerate(true)}
+            variant="outline" 
+            className="rounded-xl font-bold border-brand-vibrant/30 text-brand-vibrant hover:bg-brand-vibrant/5 shadow-sm"
+          >
+            <Zap size={18} className="mr-2" /> Regenerate
+          </Button>
+          {trip?.itinerary?.length > 0 && (
+            <Button 
+              onClick={() => setShowVersions(true)}
+              variant="outline" 
+              className="rounded-xl font-bold border-base-content/10 shadow-sm text-base-content/60"
+            >
+              <Loader2 size={18} className="mr-2" /> Versions
+            </Button>
+          )}
+          <Button 
+            onClick={handleExportPDF}
+            disabled={exporting}
+            variant="outline" 
+            className="rounded-xl font-bold border-base-content/10 shadow-sm text-base-content/60"
+          >
+            {exporting ? <Loader2 size={18} className="animate-spin mr-2" /> : <Download size={18} className="mr-2" />} Export PDF
+          </Button>
+          <Button 
+            onClick={handleSafetyCheckIn}
+            className="rounded-xl font-black bg-brand-vibrant hover:bg-brand-vibrant/90 shadow-xl shadow-brand-vibrant/20"
+          >
+            <ShieldCheck size={18} className="mr-2" /> Safety Check-in
+          </Button>
+        </div>
+      </div>
+
+      <style>{`
+        @page { size: A4 portrait; margin: 20mm; }
+        @media print {
+          .no-print, nav, header, footer, aside, .glass-card button, .btn-premium { display: none !important; }
+          .max-w-6xl { max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
+          body { background: white !important; font-size: 11pt; padding: 0 !important; }
+          .glass-card { border: 1px solid #ddd !important; box-shadow: none !important; break-inside: avoid; }
+          h1, h2, h3, h4 { color: black !important; }
+          .text-brand-vibrant { color: #10b981 !important; }
+          .text-base-content { color: #0f172a !important; }
+        }
+      `}</style>
+
+      <div className="grid lg:grid-cols-3 gap-10">
+        {/* Sidebar Info */}
+        <div className="space-y-8 no-print">
+          <SoloSafetyHub 
+            trip={trip} 
+            contacts={contacts} 
+            onOpenContacts={() => setShowDocuments(true)} // Assuming contacts are managed in documents or separate modal
+            onOpenTimer={() => setShowCheckIn(true)}
+          />
+          {trip?.destination && <WeatherWidget city={trip.destination} />}
+          <div className="glass-card p-8 rounded-xl shadow-xl">
+             <h3 className="text-xl font-black text-base-content mb-6 flex items-center gap-2">
+               <Calendar className="text-brand-vibrant" /> Trip Details
+             </h3>
+             {loading || !trip ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-10 w-full rounded-xl" />
+                  <Skeleton className="h-10 w-full rounded-xl" />
+                  <Skeleton className="h-10 w-full rounded-xl" />
+                </div>
+             ) : (
+               <div className="space-y-6">
+                  <div>
+                    <p className="text-[10px] font-black text-base-content/40 uppercase tracking-widest mb-1">Duration</p>
+                    <p className="font-bold text-base-content/70">
+                      {trip.start_date ? new Date(trip.start_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric'}) : 'TBD'} 
+                      {' — '} 
+                      {trip.end_date ? new Date(trip.end_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD'}
+                    </p>
+                  </div>
+                  <div>
+                     <p className="text-[10px] font-black text-base-content/40 uppercase tracking-widest mb-1">Budget Allocation</p>
+                     <div className="flex items-end gap-2">
+                        <p className="text-2xl font-black text-base-content">£{totalCost.toLocaleString()}</p>
+                        <p className="text-sm font-bold text-base-content/40 mb-1">/ £{trip.budget?.toLocaleString() || '0'}</p>
+                     </div>
+                     <div className="w-full bg-base-200 rounded-full h-2 mt-2">
+                        <div className="bg-brand-vibrant h-2 rounded-full" style={{ width: `${Math.min((totalCost / (trip.budget || 1)) * 100, 100)}%` }}></div>
+                     </div>
+                  </div>
+                  <div>
+                     <p className="text-[10px] font-black text-base-content/40 uppercase tracking-widest mb-1">Activities</p>
+                     <p className="font-bold text-base-content/70">{totalActivities} Activities planned</p>
+                  </div>
+               </div>
+             )}
+             {trip?.notes && (
+              <div className="mt-8 pt-8 border-t border-base-content/10">
+                <p className="text-[10px] font-black text-base-content/40 uppercase tracking-widest mb-2">My Planning Notes</p>
+                <p className="text-sm text-base-content/60 leading-relaxed italic">"{trip.notes}"</p>
+              </div>
+             )}
+          </div>
+
+          <div className="p-8 rounded-xl bg-brand-deep text-white shadow-xl relative overflow-hidden">
+             <div className="absolute -right-4 -top-4 w-24 h-24 bg-brand-vibrant/20 rounded-full blur-2xl"></div>
+             <Sparkles className="text-brand-vibrant mb-6" size={32} />
+             <h4 className="text-xl font-black mb-2">AI Itinerary</h4>
+             <p className="text-sm text-white/60 font-medium mb-8 leading-relaxed">
+               {trip?.itinerary?.length > 0 
+                ? "Your itinerary is ready. You can regenerate it if you've changed your travel dates or notes."
+                : "Your itinerary hasn't been designed yet. Let our specialist AI build your solo adventure."}
+             </p>
+              <Button 
+               onClick={generateItinerary}
+               disabled={generating}
+               variant="primary"
+               className="w-full py-4 rounded-xl font-black btn-premium shadow-lg transition-all"
+              >
+                {generating ? 'Processing DNA...' : trip?.itinerary?.length > 0 ? 'Regenerate Itinerary' : 'Generate with AI'}
+              </Button>
+           </div>
+
+            {/* Packing List Card */}
+            <FeatureGate feature="PACKING">
+              <button 
+                onClick={() => setShowPackingList(true)}
+                className="w-full p-8 rounded-xl bg-base-200 border-2 border-amber-500/20 shadow-lg hover:shadow-xl hover:border-amber-500/40 transition-all group text-left"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-14 h-14 rounded-xl bg-amber-500/10 flex items-center justify-center group-hover:bg-amber-500/20 transition-colors">
+                    <Package size={28} className="text-warning" />
+                  </div>
+                  <ChevronRight size={20} className="text-amber-500/40 group-hover:translate-x-1 transition-transform" />
+                </div>
+                <h4 className="text-lg font-black text-base-content mb-1">Packing List</h4>
+                <p className="text-sm text-base-content/60 font-medium">Never forget essentials again</p>
+              </button>
+            </FeatureGate>
+
+            {/* Budget Tracker Card */}
+            <FeatureGate feature="BUDGET">
+              <button 
+                onClick={() => setShowBudget(true)}
+                className="w-full p-8 rounded-xl bg-base-200 border-2 border-emerald-500/20 shadow-lg hover:shadow-xl hover:border-emerald-500/40 transition-all group text-left"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-14 h-14 rounded-xl bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
+                    <Wallet size={28} className="text-emerald-500" />
+                  </div>
+                  <ChevronRight size={20} className="text-emerald-500/40 group-hover:translate-x-1 transition-transform" />
+                </div>
+                <h4 className="text-lg font-black text-base-content mb-1">Budget Tracker</h4>
+                <p className="text-sm text-base-content/60 font-medium">Track your trip expenses</p>
+              </button>
+            </FeatureGate>
+
+           {/* Accommodation Card */}
+           <button 
+             onClick={() => setShowAccommodation(true)}
+             className="w-full p-8 rounded-xl bg-base-200 border-2 border-indigo-500/20 shadow-lg hover:shadow-xl hover:border-indigo-500/40 transition-all group text-left"
+           >
+             <div className="flex items-center justify-between mb-4">
+               <div className="w-14 h-14 rounded-xl bg-indigo-500/10 flex items-center justify-center group-hover:bg-indigo-500/20 transition-colors">
+                 <Building size={28} className="text-indigo-500" />
+               </div>
+               <ChevronRight size={20} className="text-indigo-500/40 group-hover:translate-x-1 transition-transform" />
+             </div>
+             <h4 className="text-lg font-black text-base-content mb-1">Accommodation</h4>
+             <p className="text-sm text-base-content/60 font-medium">{accommodations.length > 0 ? `${accommodations.length} booking(s)` : 'Add your stays'}</p>
+           </button>
+
+           {/* Bookings Card */}
+           <button 
+             onClick={() => setShowBookings(true)}
+             className="w-full p-8 rounded-xl bg-base-200 border-2 border-cyan-500/20 shadow-lg hover:shadow-xl hover:border-cyan-500/40 transition-all group text-left"
+           >
+             <div className="flex items-center justify-between mb-4">
+               <div className="w-14 h-14 rounded-xl bg-cyan-500/10 flex items-center justify-center group-hover:bg-cyan-500/20 transition-colors">
+                 <Ticket size={28} className="text-cyan-500" />
+               </div>
+               <ChevronRight size={20} className="text-cyan-500/40 group-hover:translate-x-1 transition-transform" />
+             </div>
+             <h4 className="text-lg font-black text-base-content mb-1">Bookings</h4>
+             <p className="text-sm text-base-content/60 font-medium">{bookings.length > 0 ? `${bookings.length} booking(s)` : 'Transport & tours'}</p>
+           </button>
+
+           {/* Documents Card */}
+           <button 
+             onClick={() => setShowDocuments(true)}
+             className="w-full p-8 rounded-xl bg-base-200 border-2 border-rose-500/20 shadow-lg hover:shadow-xl hover:border-rose-500/40 transition-all group text-left"
+           >
+             <div className="flex items-center justify-between mb-4">
+               <div className="w-14 h-14 rounded-xl bg-rose-500/10 flex items-center justify-center group-hover:bg-rose-500/20 transition-colors">
+                 <FileText size={28} className="text-rose-500" />
+               </div>
+               <ChevronRight size={20} className="text-rose-500/40 group-hover:translate-x-1 transition-transform" />
+             </div>
+             <h4 className="text-lg font-black text-base-content mb-1">Documents</h4>
+             <p className="text-sm text-base-content/60 font-medium">{documents.length > 0 ? `${documents.length} document(s)` : 'Passport, visa, insurance'}</p>
+           </button>
+
+           {/* Saved Places Card */}
+           <button 
+             onClick={() => setShowPlaces(true)}
+           >
+             <div className="flex items-center justify-between mb-4">
+               <div className="w-14 h-14 rounded-xl bg-violet-100 flex items-center justify-center group-hover:bg-violet-200 transition-colors">
+                 <Bookmark size={28} className="text-violet-600" />
+               </div>
+               <ChevronRight size={20} className="text-violet-400 group-hover:translate-x-1 transition-transform" />
+             </div>
+             <h4 className="text-lg font-black text-violet-900 mb-1">Saved Places</h4>
+             <p className="text-sm text-violet-700 font-medium">{savedPlaces.length > 0 ? `${savedPlaces.length} place(s)` : 'Spots to explore'}</p>
+           </button>
+
+           {FEATURES.FLIGHTS && (
+             <div className="mt-6">
+               <FlightStatusWidget 
+                 tripId={id}
+                 onAddToTrip={handleAddFlightToTrip}
+               />
+             </div>
+           )}
+
+           {/* Currency Converter */}
+           <div className="mt-6">
+             <CurrencyConverter defaultFrom="GBP" defaultTo="EUR" initialAmount={100} />
+           </div>
+
+           {/* Places Search */}
+           <div className="mt-6">
+             <PlacesSearch destination={trip?.destination} />
+           </div>
+
+           {/* Transit Directions */}
+           <div className="mt-6">
+             <TransitDirections destination={trip?.destination} />
+           </div>
+
+           {/* Affiliate Links */}
+           <div className="mt-6">
+             <AffiliateLinks destination={trip?.destination} />
+           </div>
+         </div>
+
+        <AnimatePresence>
+          {generating && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] bg-brand-deep/80 backdrop-blur-xl flex items-center justify-center p-6"
+            >
+              <motion.div 
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                className="max-w-md w-full bg-base-100 p-10 rounded-xl shadow-2xl text-center relative overflow-hidden border border-base-content/10"
+              >
+                <div className="absolute top-0 left-0 w-full h-1.5 bg-base-300">
+                  <motion.div 
+                    className="h-full bg-brand-vibrant" 
+                    initial={{ width: "0%" }}
+                    animate={{ width: "100%" }}
+                    transition={{ duration: 30, ease: "linear" }}
+                  />
+                </div>
+
+                <div className="w-20 h-20 bg-brand-vibrant/10 rounded-xl flex items-center justify-center mx-auto mb-8 text-brand-vibrant">
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                  >
+                    <Sparkles size={40} />
+                  </motion.div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-2xl font-black text-base-content tracking-tight">
+                    {steps[genStep]?.title || "Initializing..."}
+                  </h3>
+                  <div className="h-12 flex items-center justify-center">
+                    <p className="text-base-content/60 font-medium leading-relaxed">
+                      Our specialist AI is vetting local spots in <span className="text-brand-vibrant font-bold">{trip?.destination}</span>...
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-10 flex flex-col gap-3">
+{steps.map((step, i) => (
+                      <div key={`step-${step.title}`} className="flex items-center gap-3">
+                        <div className={`w-2 h-2 rounded-full ${i <= genStep ? 'bg-brand-vibrant shadow-lg shadow-brand-vibrant/50' : 'bg-base-300'}`} />
+                        <span className={`text-xs font-bold ${i <= genStep ? 'text-base-content' : 'text-base-content/20'}`}>{step.title}</span>
+                        {i === genStep && <span className="ml-auto text-[10px] font-black text-brand-vibrant animate-pulse">Processing...</span>}
+                     </div>
+                   ))}
+                </div>
+                
+                <p className="mt-8 text-[10px] font-black uppercase tracking-widest text-base-content/40">Solo Mission Blueprinting v2.4</p>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Itinerary Timeline */}
+        <div className="lg:col-span-2">
+          {loading ? (
+            <div className="space-y-12">
+{[1,2,3].map(i => (
+                  <div key={`skeleton-${i}`} className="relative pl-8 border-l-2 border-base-content/10 pb-4">
+                    <div className="absolute -left-3 top-0 w-6 h-6 rounded-full bg-base-300 border-2 border-base-100"></div>
+                    <Skeleton className="h-10 w-48 mb-8" />
+                    <div className="space-y-4">
+                       <Skeleton className="h-40 w-full rounded-xl" />
+                       <Skeleton className="h-40 w-full rounded-xl" />
+                    </div>
+                 </div>
+               ))}
+            </div>
+          ) : trip.itinerary && trip.itinerary.length > 0 ? (
+            <div className="space-y-12">
+              <div className="flex items-center justify-between px-2">
+                <h2 className="text-2xl font-black text-base-content">Daily Roadmap</h2>
+                <div className="flex items-center gap-2 text-sm font-bold text-base-content/40">
+                  <CheckCircle2 size={16} className="text-emerald-500" /> Generated by AI
+                </div>
+              </div>
+
+              {trip.itinerary.map((day, dIdx) => (
+                <div key={day.id} className="relative pl-8 border-l-2 border-base-content/10 pb-4">
+                  {/* Day Marker */}
+                  <div className="absolute -left-3 top-0 w-6 h-6 rounded-full bg-base-100 border-2 border-brand-vibrant z-10 flex items-center justify-center">
+                    <div className="w-2 h-2 rounded-full bg-brand-vibrant"></div>
+                  </div>
+                  
+                  <div className="mb-8">
+                     <h3 className="text-2xl font-black text-base-content flex items-baseline gap-3">
+                       Day {day.day_number}
+                      {day.date && <span className="text-sm font-bold text-base-content/40">— {new Date(day.date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</span>}
+                     </h3>
+                     <div className="flex items-center gap-4 mt-2">
+                        {day.notes && <p className="text-brand-accent font-bold text-sm italic">{day.notes}</p>}
+                        <button 
+                           onClick={() => openAddActivity(day.id)}
+                           className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-base-200 text-base-content/60 hover:bg-brand-vibrant hover:text-white text-[10px] font-black uppercase tracking-widest transition-all"
+                        >
+                           <Plus size={12} /> Add Activity
+                        </button>
+                     </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    {day.activities?.length > 0 ? (
+                      day.activities.map((activity, aIdx) => (
+                        <div key={activity.id} className="group relative glass-card p-6 rounded-xl border border-base-content/5 hover:border-brand-vibrant/20 hover:shadow-xl hover:shadow-brand-vibrant/5 transition-all">
+                          <div className="flex flex-col md:flex-row gap-6">
+                             <div className="w-12 h-12 rounded-xl bg-base-200 flex items-center justify-center text-base-content group-hover:bg-brand-vibrant group-hover:text-white transition-colors flex-shrink-0">
+                                {getActivityIcon(activity.type)}
+                             </div>
+                             
+                             <div className="flex-1 space-y-2">
+                                <div className="flex justify-between items-start">
+                                   <div>
+                                      <div className="flex items-center gap-3">
+                                         <h4 className="text-xl font-extrabold text-base-content leading-none">{activity.name}</h4>
+                                         <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md bg-base-200 text-base-content/60">{activity.type}</span>
+                                      </div>
+                                      <p className="text-sm font-bold text-base-content/40 mt-1 flex items-center gap-1">
+                                        <MapPin size={14} /> {activity.location}
+                                      </p>
+                                   </div>
+                                   <div className="text-right flex-shrink-0">
+                                      <p className="text-sm font-black text-base-content">{activity.time || 'Flexible'}</p>
+                                      {activity.duration_hours && <p className="text-xs font-bold text-base-content/40">{activity.duration_hours}h duration</p>}
+                                   </div>
+                                </div>
+                                
+                                {activity.description && (
+                                  <p className="text-sm text-base-content/70 font-medium leading-relaxed">{activity.description}</p>
+                                )}
+                                
+                                <div className="flex flex-wrap items-center gap-4 pt-2">
+                                   {activity.cost > 0 && (
+                                     <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-success/10 text-success text-xs font-black">
+                                       <PoundSterling size={12} /> {activity.cost}
+                                     </div>
+                                   )}
+                                   <a 
+                                      href={`https://www.google.com/maps/search/${encodeURIComponent(activity.name + ' ' + activity.location)}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-xs font-black text-brand-vibrant hover:underline flex items-center gap-1"
+                                    >
+                                      <MapPin size={12} /> View
+                                    </a>
+                                    <a 
+                                       href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(activity.name + ' ' + (activity.location || ''))}`}
+                                       target="_blank"
+                                       rel="noreferrer"
+                                       className="text-xs font-black text-blue-500 hover:underline flex items-center gap-1"
+                                     >
+                                       <Navigation size={12} /> Directions
+                                     </a>
+                                    {(activity.type === 'Food & Dining' || activity.type === 'Accommodation') && (
+                                      <a 
+                                        href={`https://www.booking.com/search.html?ss=${encodeURIComponent(activity.name + ' ' + (activity.location || trip.destination))}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-xs font-black text-blue-600 hover:underline flex items-center gap-1"
+                                      >
+                                        <ExternalLink size={12} /> Book Stay
+                                      </a>
+                                    )}
+                                    {activity.type !== 'Transport' && activity.type !== 'Food & Dining' && (
+                                      <a 
+                                        href={`https://www.viator.com/search?q=${encodeURIComponent(activity.name)}&location=${encodeURIComponent(trip.destination)}&pid=${import.meta.env.VITE_VIATOR_PID || ''}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-xs font-black text-[#ff5900] hover:underline flex items-center gap-1"
+                                      >
+                                        <ExternalLink size={12} /> Book Tour on Viator
+                                      </a>
+                                    )}
+                                   {activity.bookingInfo && (
+                                      <div className="text-xs font-bold text-base-content/40 flex items-center gap-1">
+                                        <Clock size={12} /> {activity.bookingInfo}
+                                      </div>
+                                   )}
+                                </div>
+                             </div>
+
+                             <div className="flex md:flex-col items-center justify-end gap-2 pr-2">
+                                <button 
+                                  onClick={() => openEditActivity(activity)}
+                                  className="p-2 text-base-content/20 hover:text-brand-vibrant hover:bg-base-100 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                  title="Edit Activity"
+                                >
+                                   <Edit2 size={18} />
+                                </button>
+                                <button 
+                                  onClick={() => deleteActivity(activity.id)}
+                                  className="p-2 text-base-content/20 hover:text-error hover:bg-base-100 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                  title="Remove Activity"
+                                >
+                                   <Trash2 size={18} />
+                                </button>
+                             </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-10 border-2 border-dashed border-base-content/5 rounded-xl flex flex-col items-center justify-center text-center">
+                         <MapPin size={32} className="text-base-content/10 mb-4" />
+                         <p className="text-base-content/40 font-bold">No activities fixed for this day yet.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="h-full min-h-[500px] flex flex-col items-center justify-center glass-card rounded-xl p-12 text-center">
+               <div className="w-20 h-20 bg-base-200 rounded-xl flex items-center justify-center mb-8 border border-base-content/10">
+                 <Zap size={40} className="text-base-content/20" />
+               </div>
+               <h3 className="text-2xl font-black text-base-content mb-2">Roadmap is Empty</h3>
+               <p className="text-base-content/60 font-medium max-w-sm mx-auto mb-10 text-lg">
+                 Your itinerary hasn't been designed. Use the AI engine in the sidebar to create your perfect solo trip.
+               </p>
+               <Button 
+                onClick={generateItinerary} 
+                disabled={generating}
+                variant="primary" 
+                className="rounded-xl px-12 py-4 font-black btn-premium shadow-2xl"
+               >
+                 {generating ? 'Processing DNA...' : 'Start AI Generation'}
+               </Button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Add/Edit Activity Modal */}
+      {(editingActivity || showAddActivity) && (
+        <div className="fixed inset-0 z-[110] bg-brand-deep/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="w-full max-w-xl bg-base-100 rounded-xl shadow-2xl overflow-hidden border border-base-content/10"
+          >
+            <div className="p-8 border-b border-base-content/5 flex items-center justify-between bg-base-200/50">
+               <div>
+                 <h3 className="text-2xl font-black text-base-content">
+                   {editingActivity ? 'Edit Activity' : 'Add Activity'}
+                 </h3>
+                 <p className="text-sm text-base-content/40 font-medium italic">Refine your solo mission blueprint</p>
+               </div>
+               <button 
+                 onClick={() => { setEditingActivity(null); setShowAddActivity(false); }}
+                 className="w-10 h-10 rounded-xl bg-base-100 shadow-sm border border-base-content/10 flex items-center justify-center text-base-content/40 hover:text-base-content transition-all"
+               >
+                 <X size={20} />
+               </button>
+            </div>
+
+            <form onSubmit={handleActivitySubmit} className="p-8 space-y-6">
+               <div className="grid md:grid-cols-2 gap-6">
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Activity Name</label>
+                    <input 
+                      required
+                      value={activityForm.name}
+                      onChange={e => setActivityForm({...activityForm, name: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-200 focus:ring-2 focus:ring-brand-vibrant/50 focus:border-brand-vibrant outline-none font-bold text-base-content"
+                      placeholder="e.g. Sunset at the Acropolis"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Type</label>
+                    <select 
+                      value={activityForm.type}
+                      onChange={e => setActivityForm({...activityForm, type: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-300 focus:ring-2 focus:ring-brand-vibrant/50 outline-none font-bold text-base-content"
+                    >
+                      <option value="Sightseeing">Sightseeing</option>
+                      <option value="Food & Dining">Food & Dining</option>
+                      <option value="Transport">Transport</option>
+                      <option value="Adventure">Adventure</option>
+                      <option value="Cultural">Cultural</option>
+                      <option value="Relaxation">Relaxation</option>
+                      <option value="Nightlife">Nightlife</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Time</label>
+                    <input 
+                      value={activityForm.time}
+                      onChange={e => setActivityForm({...activityForm, time: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-300 focus:ring-2 focus:ring-brand-vibrant/50 outline-none font-bold text-base-content"
+                      placeholder="e.g. 18:30"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Location</label>
+                    <input 
+                      value={activityForm.location}
+                      onChange={e => setActivityForm({...activityForm, location: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-300 focus:ring-2 focus:ring-brand-vibrant/50 outline-none font-bold text-base-content"
+                      placeholder="Full address or landmark"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Cost (£)</label>
+                    <input 
+                      type="number"
+                      value={activityForm.cost}
+                      onChange={e => setActivityForm({...activityForm, cost: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-300 focus:ring-2 focus:ring-brand-vibrant/50 outline-none font-bold text-base-content"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Duration (Hours)</label>
+                    <input 
+                      type="number"
+                      step="0.5"
+                      value={activityForm.durationHours}
+                      onChange={e => setActivityForm({...activityForm, durationHours: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-300 focus:ring-2 focus:ring-brand-vibrant/50 outline-none font-bold text-base-content"
+                      placeholder="2"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Notes / Description</label>
+                    <textarea 
+                      value={activityForm.notes}
+                      onChange={e => setActivityForm({...activityForm, notes: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-300 focus:ring-2 focus:ring-brand-vibrant/50 outline-none font-bold text-base-content"
+                      rows="3"
+                      placeholder="Any specific solo-safety tips or highlights?"
+                    />
+                  </div>
+               </div>
+
+               <div className="flex justify-end gap-4 pt-4">
+                  <button 
+                    type="button"
+                    onClick={() => { setEditingActivity(null); setShowAddActivity(false); }}
+                    className="px-6 py-3 rounded-xl font-black text-base-content/40 hover:text-base-content transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <Button type="submit" className="px-10 py-3 rounded-xl font-black shadow-xl shadow-brand-vibrant/20">
+                    {editingActivity ? 'Update Activity' : 'Create Activity'}
+                  </Button>
+               </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Packing List Modal */}
+      {showPackingList && (
+        <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-xl bg-base-100 rounded-3xl shadow-2xl overflow-hidden relative">
+            <PackingList tripId={id} tripName={trip?.name} onClose={() => setShowPackingList(false)} />
+          </div>
+        </div>
+      )}
+
+      {/* Budget Tracker Modal */}
+      {showBudget && (
+        <div className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+          <BudgetTracker tripId={id} tripName={trip?.name} onClose={() => setShowBudget(false)} />
+        </div>
+      )}
+
+      {/* Accommodation Modal */}
+      {showAccommodation && (
+        <div className="fixed inset-0 z-[150] bg-brand-deep/60 backdrop-blur-md flex items-start justify-center p-4 pt-20 overflow-y-auto animate-fade-in">
+          <div className="w-full max-w-2xl bg-base-100 rounded-xl shadow-2xl overflow-hidden animate-slide-up border border-base-content/10">
+            <div className="p-8 border-b border-base-content/5 flex items-center justify-between bg-base-200/50">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center">
+                  <Building size={24} className="text-indigo-500" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-base-content">Accommodation</h2>
+                  <p className="text-sm text-base-content/40">Manage your stays</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowAccommodation(false)}
+                className="w-10 h-10 rounded-xl bg-base-200 hover:bg-base-300 flex items-center justify-center transition-colors"
+              >
+                <X size={20} className="text-base-content/40" />
+              </button>
+            </div>
+            <div className="p-8 space-y-6">
+              {accommodations.length > 0 ? (
+                <div className="space-y-4">
+                  {accommodations.map(acc => (
+                    <div key={acc.id} className="glass-card p-6 rounded-xl border border-base-content/5 hover:shadow-lg transition-all">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-4">
+                          <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-500">
+                            {getAccommodationIcon(acc.type)}
+                          </div>
+                          <div>
+                            <h4 className="text-lg font-black text-base-content">{acc.name}</h4>
+                            <p className="text-sm text-base-content/40 font-medium flex items-center gap-1 mt-1">
+                              <MapPin size={14} /> {acc.address || 'No address'}
+                            </p>
+                            {acc.confirmation && (
+                              <p className="text-xs font-bold text-indigo-500 mt-1">Conf: {acc.confirmation}</p>
+                            )}
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => deleteAccommodation(acc.id)}
+                          className="p-2 text-base-content/20 hover:text-error hover:bg-error/10 rounded-lg transition-all"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                      {acc.checkIn && acc.checkOut && (
+                        <div className="mt-4 pt-4 border-t border-base-content/5 flex items-center gap-4 text-sm">
+                          <div>
+                            <p className="text-[10px] font-black uppercase text-base-content/40">Check-in</p>
+                            <p className="font-bold text-base-content/70">{new Date(acc.checkIn).toLocaleDateString()}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black uppercase text-base-content/40">Check-out</p>
+                            <p className="font-bold text-base-content/70">{new Date(acc.checkOut).toLocaleDateString()}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Building size={48} className="text-base-content/10 mx-auto mb-4" />
+                  <p className="text-base-content/40 font-medium">No accommodations added yet</p>
+                </div>
+              )}
+              
+              <form onSubmit={handleAccommodationSubmit} className="mt-8 p-6 bg-base-200/50 rounded-xl border border-base-content/5">
+                <h4 className="text-lg font-black text-base-content mb-4">Add Accommodation</h4>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Type</label>
+                    <select 
+                      value={accommodationForm.type}
+                      onChange={e => setAccommodationForm({...accommodationForm, type: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-base-content"
+                    >
+                      <option value="hotel">Hotel</option>
+                      <option value="hostel">Hostel</option>
+                      <option value="airbnb">Airbnb</option>
+                      <option value="resort">Resort</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Name</label>
+                    <input 
+                      value={accommodationForm.name}
+                      onChange={e => setAccommodationForm({...accommodationForm, name: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-base-content"
+                      placeholder="Hotel name"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Address</label>
+                    <input 
+                      value={accommodationForm.address}
+                      onChange={e => setAccommodationForm({...accommodationForm, address: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-base-content"
+                      placeholder="Full address"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Confirmation Number</label>
+                    <input 
+                      value={accommodationForm.confirmation}
+                      onChange={e => setAccommodationForm({...accommodationForm, confirmation: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-base-content"
+                      placeholder="Booking confirmation"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Check-in</label>
+                    <input 
+                      type="date"
+                      value={accommodationForm.checkIn}
+                      onChange={e => setAccommodationForm({...accommodationForm, checkIn: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-base-content"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Check-out</label>
+                    <input 
+                      type="date"
+                      value={accommodationForm.checkOut}
+                      onChange={e => setAccommodationForm({...accommodationForm, checkOut: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-base-content"
+                    />
+                  </div>
+                </div>
+                <div className="mt-6">
+                  <Button type="submit" className="w-full py-3 rounded-xl font-black bg-brand-vibrant hover:bg-emerald-600 text-white">
+                    <Plus size={18} className="inline mr-2" /> Add Accommodation
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bookings Modal */}
+      {showBookings && (
+        <div className="fixed inset-0 z-[150] bg-brand-deep/60 backdrop-blur-md flex items-start justify-center p-4 pt-20 overflow-y-auto animate-fade-in">
+          <div className="w-full max-w-2xl bg-base-100 rounded-xl shadow-2xl overflow-hidden animate-slide-up border border-base-content/10">
+            <div className="p-8 border-b border-base-content/5 flex items-center justify-between bg-base-200/50">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-cyan-500/10 flex items-center justify-center">
+                  <Ticket size={24} className="text-cyan-500" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-base-content">Bookings</h2>
+                  <p className="text-sm text-base-content/40">Transport, tours & activities</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowBookings(false)}
+                className="w-10 h-10 rounded-xl bg-base-200 hover:bg-base-300 flex items-center justify-center transition-colors"
+              >
+                <X size={20} className="text-base-content/40" />
+              </button>
+            </div>
+            <div className="p-8 space-y-6">
+              {bookings.length > 0 ? (
+                <div className="space-y-4">
+                  {bookings.map(booking => (
+                    <div key={booking.id} className="glass-card p-6 rounded-xl border border-base-content/5 hover:shadow-lg transition-all">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-4">
+                          <div className="w-12 h-12 rounded-xl bg-cyan-50 flex items-center justify-center text-cyan-600">
+                            {getBookingIcon(booking.type)}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-lg font-black text-base-content">{booking.provider || 'Booking'}</h4>
+                              <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-500">{booking.type}</span>
+                            </div>
+                            {booking.departureLocation && booking.arrivalLocation && (
+                              <p className="text-sm text-base-content/40 font-medium mt-1 flex items-center gap-1">
+                                <Navigation size={14} /> {booking.departureLocation} → {booking.arrivalLocation}
+                              </p>
+                            )}
+                            {booking.confirmation && (
+                              <p className="text-xs font-bold text-cyan-500 mt-1">Conf: {booking.confirmation}</p>
+                            )}
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => deleteBooking(booking.id)}
+                          className="p-2 text-base-content/20 hover:text-error hover:bg-error/10 rounded-lg transition-all"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                      {(booking.departureDate || booking.arrivalDate) && (
+                        <div className="mt-4 pt-4 border-t border-base-content/5 flex items-center gap-4 text-sm">
+                          {booking.departureDate && (
+                            <div>
+                              <p className="text-[10px] font-black uppercase text-base-content/40">Depart</p>
+                              <p className="font-bold text-base-content/70">{new Date(booking.departureDate).toLocaleDateString()}</p>
+                            </div>
+                          )}
+                          {booking.arrivalDate && (
+                            <div>
+                              <p className="text-[10px] font-black uppercase text-base-content/40">Arrive</p>
+                              <p className="font-bold text-base-content/70">{new Date(booking.arrivalDate).toLocaleDateString()}</p>
+                            </div>
+                          )}
+                          {booking.cost && (
+                            <div className="ml-auto">
+                              <p className="text-[10px] font-black uppercase text-base-content/40">Cost</p>
+                              <p className="font-bold text-emerald-500">{booking.currency} {booking.cost}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Ticket size={48} className="text-base-content/20 mx-auto mb-4" />
+                  <p className="text-base-content/40 font-medium">No bookings added yet</p>
+                </div>
+              )}
+              
+              <form onSubmit={handleBookingSubmit} className="mt-8 p-6 bg-base-200/50 rounded-xl border border-base-content/5">
+                <h4 className="text-lg font-black text-base-content mb-4">Add Booking</h4>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Type</label>
+                    <select 
+                      value={bookingForm.type}
+                      onChange={e => setBookingForm({...bookingForm, type: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-cyan-500 outline-none font-bold text-base-content"
+                    >
+                      <option value="flight">Flight</option>
+                      <option value="train">Train</option>
+                      <option value="bus">Bus</option>
+                      <option value="tour">Tour</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Provider</label>
+                    <input 
+                      value={bookingForm.provider}
+                      onChange={e => setBookingForm({...bookingForm, provider: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-cyan-500 outline-none font-bold text-base-content"
+                      placeholder="Airline or company"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Confirmation</label>
+                    <input 
+                      value={bookingForm.confirmation}
+                      onChange={e => setBookingForm({...bookingForm, confirmation: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-cyan-500 outline-none font-bold text-base-content"
+                      placeholder="Booking reference"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">From</label>
+                    <input 
+                      value={bookingForm.departureLocation}
+                      onChange={e => setBookingForm({...bookingForm, departureLocation: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-cyan-500 outline-none font-bold text-base-content"
+                      placeholder="Departure location"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">To</label>
+                    <input 
+                      value={bookingForm.arrivalLocation}
+                      onChange={e => setBookingForm({...bookingForm, arrivalLocation: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-cyan-500 outline-none font-bold text-base-content"
+                      placeholder="Arrival location"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Departure Date</label>
+                    <input 
+                      type="date"
+                      value={bookingForm.departureDate}
+                      onChange={e => setBookingForm({...bookingForm, departureDate: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-cyan-500 outline-none font-bold text-base-content"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Arrival Date</label>
+                    <input 
+                      type="date"
+                      value={bookingForm.arrivalDate}
+                      onChange={e => setBookingForm({...bookingForm, arrivalDate: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-cyan-500 outline-none font-bold text-base-content"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Cost</label>
+                    <input 
+                      type="number"
+                      value={bookingForm.cost}
+                      onChange={e => setBookingForm({...bookingForm, cost: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-cyan-500 outline-none font-bold text-base-content"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Currency</label>
+                    <select 
+                      value={bookingForm.currency}
+                      onChange={e => setBookingForm({...bookingForm, currency: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-cyan-500 outline-none font-bold text-base-content"
+                    >
+                      <option value="GBP">GBP (£)</option>
+                      <option value="EUR">EUR (€)</option>
+                      <option value="USD">USD ($)</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="mt-6">
+                  <Button type="submit" className="w-full py-3 rounded-xl font-black bg-brand-vibrant hover:bg-emerald-600 text-white">
+                    <Plus size={18} className="inline mr-2" /> Add Booking
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Documents Modal */}
+      {showDocuments && (
+        <div className="fixed inset-0 z-[150] bg-brand-deep/60 backdrop-blur-md flex items-start justify-center p-4 pt-20 overflow-y-auto animate-fade-in">
+          <div className="w-full max-w-2xl bg-base-100 rounded-xl shadow-2xl overflow-hidden animate-slide-up border border-base-content/10">
+            <div className="p-8 border-b border-base-content/5 flex items-center justify-between bg-base-200/50">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-rose-500/10 flex items-center justify-center">
+                  <FileText size={24} className="text-rose-500" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-base-content">Documents</h2>
+                  <p className="text-sm text-base-content/40">Passport, visa, insurance</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowDocuments(false)}
+                className="w-10 h-10 rounded-xl bg-base-200 hover:bg-base-300 flex items-center justify-center transition-colors"
+              >
+                <X size={20} className="text-base-content/40" />
+              </button>
+            </div>
+            <div className="p-8 space-y-6">
+              {documents.length > 0 ? (
+                <div className="space-y-4">
+                  {documents.map(doc => (
+                    <div key={doc.id} className={`glass-card p-6 rounded-xl border hover:shadow-lg transition-all ${isExpiringSoon(doc.expiryDate) ? 'border-amber-500/50 bg-warning/5' : 'border-base-content/5'}`}>
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-4">
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isExpiringSoon(doc.expiryDate) ? 'bg-warning/10 text-warning' : 'bg-rose-500/10 text-rose-500'}`}>
+                            {getDocumentIcon(doc.type)}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-lg font-black text-base-content">{doc.name || doc.type}</h4>
+                              <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-500">{doc.type}</span>
+                            </div>
+                            {doc.expiryDate && (
+                              <p className="text-sm font-medium mt-1 flex items-center gap-2">
+                                <span className="text-base-content/40 font-bold uppercase text-[10px]">Expires:</span>
+                                <span className={isExpiringSoon(doc.expiryDate) ? 'text-warning font-black' : 'text-base-content/60 font-bold'}>
+                                  {new Date(doc.expiryDate).toLocaleDateString()}
+                                </span>
+                                {isExpiringSoon(doc.expiryDate) && (
+                                  <span className="flex items-center gap-1 text-[10px] font-black uppercase text-warning bg-warning/20 px-2 py-0.5 rounded">
+                                    <AlertCircle size={10} /> Expiring soon
+                                  </span>
+                                )}
+                               </p>
+                             )}
+                           </div>
+                         </div>
+                         <div className="flex items-center gap-1">
+                           {(doc.url || doc.document_url) && (
+                             <button 
+                               onClick={() => downloadDocument(doc)}
+                               className="p-2 text-base-content/40 hover:text-brand-vibrant hover:bg-brand-vibrant/10 rounded-lg transition-all"
+                               title="Download"
+                             >
+                               <Download size={18} />
+                             </button>
+                           )}
+                           <button 
+                             onClick={() => deleteDocument(doc.id)}
+                             className="p-2 text-base-content/20 hover:text-error hover:bg-error/10 rounded-lg transition-all"
+                           >
+                             <Trash2 size={18} />
+                           </button>
+                         </div>
+                       </div>
+                     </div>
+                   ))}
+                 </div>
+              ) : (
+                <div className="text-center py-8">
+                  <FileText size={48} className="text-base-content/10 mx-auto mb-4" />
+                  <p className="text-base-content/40 font-medium">No documents added yet</p>
+                </div>
+              )}
+              
+              <form onSubmit={handleDocumentSubmit} className="mt-8 p-6 bg-base-200/50 rounded-xl border border-base-content/5">
+                <h4 className="text-lg font-black text-base-content mb-4">Add Document</h4>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Type</label>
+                    <select 
+                      value={documentForm.type}
+                      onChange={e => setDocumentForm({...documentForm, type: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-rose-500 outline-none font-bold text-base-content"
+                    >
+                      <option value="passport">Passport</option>
+                      <option value="visa">Visa</option>
+                      <option value="insurance">Insurance</option>
+                      <option value="ticket">Ticket</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Name</label>
+                    <input 
+                      value={documentForm.name}
+                      onChange={e => setDocumentForm({...documentForm, name: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-rose-500 outline-none font-bold text-base-content"
+                      placeholder="Document name"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Expiry Date</label>
+                    <input 
+                      type="date"
+                      value={documentForm.expiryDate}
+                      onChange={e => setDocumentForm({...documentForm, expiryDate: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-rose-500 outline-none font-bold text-base-content"
+                    />
+                  </div>
+                </div>
+                <div className="mt-6">
+                  <Button type="submit" className="w-full py-3 rounded-xl font-black bg-brand-vibrant hover:bg-emerald-600 text-white">
+                    <Plus size={18} className="inline mr-2" /> Add Document
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Saved Places Modal */}
+      {showPlaces && (
+        <div className="fixed inset-0 z-[150] bg-brand-deep/60 backdrop-blur-md flex items-start justify-center p-4 pt-20 overflow-y-auto animate-fade-in">
+          <div className="w-full max-w-2xl bg-base-100 rounded-xl shadow-2xl overflow-hidden animate-slide-up border border-base-content/10">
+            <div className="p-8 border-b border-base-content/5 flex items-center justify-between bg-base-200/50">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-violet-500/10 flex items-center justify-center">
+                  <Bookmark size={24} className="text-violet-500" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-base-content">Saved Places</h2>
+                  <p className="text-sm text-base-content/40">Places to explore</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowPlaces(false)}
+                className="w-10 h-10 rounded-xl bg-base-200 hover:bg-base-300 flex items-center justify-center transition-colors"
+              >
+                <X size={20} className="text-base-content/40" />
+              </button>
+            </div>
+            <div className="p-8 space-y-6">
+              {savedPlaces.length > 0 ? (
+                <div className="space-y-4">
+                  {savedPlaces.map(place => (
+                    <div key={place.id} className="glass-card p-6 rounded-xl border border-base-content/5 hover:shadow-lg transition-all">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-4">
+                          <button 
+                            onClick={() => togglePlaceVisited(place.id)}
+                            className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${place.visited ? 'bg-success/20 text-success' : 'bg-violet-50 text-violet-600 hover:bg-violet-100'}`}
+                          >
+                            {place.visited ? <CheckCircle2 size={24} /> : getPlaceIcon(place.category)}
+                          </button>
+                          <div>
+                            <h4 className={`text-lg font-black ${place.visited ? 'text-base-content/40 line-through' : 'text-base-content'}`}>{place.name}</h4>
+                            {place.address && (
+                              <p className="text-sm text-base-content/40 font-medium flex items-center gap-1 mt-1">
+                                <MapPin size={14} /> {place.address}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-2 mt-2">
+                              <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md bg-violet-100 text-violet-700">{place.category}</span>
+                              {place.visited && <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md bg-success/20 text-success">Visited</span>}
+                            </div>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => deletePlace(place.id)}
+                          className="p-2 text-base-content/20 hover:text-error hover:bg-error/10 rounded-lg transition-all"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                      {place.notes && (
+                        <div className="mt-4 pt-4 border-t border-base-content/5">
+                          <p className="text-sm text-base-content/60 font-medium">{place.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Bookmark size={48} className="text-base-content/10 mx-auto mb-4" />
+                  <p className="text-base-content/40 font-medium">No places saved yet</p>
+                </div>
+              )}
+              
+              <form onSubmit={handlePlaceSubmit} className="mt-8 p-6 bg-base-200/50 rounded-xl border border-base-content/5">
+                <h4 className="text-lg font-black text-base-content mb-4">Save a Place</h4>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Name</label>
+                    <input 
+                      value={placeForm.name}
+                      onChange={e => setPlaceForm({...placeForm, name: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-violet-500 outline-none font-bold text-base-content"
+                      placeholder="Place name"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Address</label>
+                    <input 
+                      value={placeForm.address}
+                      onChange={e => setPlaceForm({...placeForm, address: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-violet-500 outline-none font-bold text-base-content"
+                      placeholder="Full address"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Category</label>
+                    <select 
+                      value={placeForm.category}
+                      onChange={e => setPlaceForm({...placeForm, category: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-violet-500 outline-none font-bold text-base-content"
+                    >
+                      <option value="restaurant">Restaurant</option>
+                      <option value="attraction">Attraction</option>
+                      <option value="cafe">Cafe</option>
+                      <option value="bar">Bar</option>
+                      <option value="shop">Shop</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Notes</label>
+                    <textarea 
+                      value={placeForm.notes}
+                      onChange={e => setPlaceForm({...placeForm, notes: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-violet-500 outline-none font-bold text-base-content"
+                      rows="2"
+                      placeholder="Why save this place?"
+                    />
+                  </div>
+                </div>
+                <div className="mt-6">
+                  <Button type="submit" className="w-full py-3 rounded-xl font-black bg-violet-600 hover:bg-violet-700 text-white">
+                    <Plus size={18} className="inline mr-2" /> Save Place
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Edit Trip Modal */}
+      {showEditTrip && (
+        <div className="fixed inset-0 z-[200] bg-brand-deep/60 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-xl bg-base-100 rounded-3xl shadow-2xl overflow-hidden animate-scale-in relative border border-base-content/10">
+            <div className="p-8 border-b border-base-content/5 flex items-center justify-between bg-base-200/50">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-brand-vibrant/10 flex items-center justify-center text-brand-vibrant">
+                  <Edit3 size={24} />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-base-content">Edit Trip</h2>
+                  <p className="text-sm text-base-content/40">Update your trip basic details</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowEditTrip(false)}
+                className="w-10 h-10 rounded-xl bg-base-200 hover:bg-base-300 flex items-center justify-center transition-colors"
+              >
+                <X size={20} className="text-base-content/40" />
+              </button>
+            </div>
+            <form onSubmit={handleEditTripSubmit} className="p-8 space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Trip Name</label>
+                  <input 
+                    value={editTripForm.name}
+                    onChange={e => setEditTripForm({...editTripForm, name: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-brand-vibrant outline-none font-bold text-base-content"
+                    required
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Destination</label>
+                  <input 
+                    value={editTripForm.destination}
+                    onChange={e => setEditTripForm({...editTripForm, destination: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-brand-vibrant outline-none font-bold text-base-content"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Start Date</label>
+                  <input 
+                    type="date"
+                    value={editTripForm.startDate}
+                    onChange={e => setEditTripForm({...editTripForm, startDate: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-brand-vibrant outline-none font-bold text-base-content"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">End Date</label>
+                  <input 
+                    type="date"
+                    value={editTripForm.endDate}
+                    onChange={e => setEditTripForm({...editTripForm, endDate: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-brand-vibrant outline-none font-bold text-base-content"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Total Budget (£)</label>
+                  <input 
+                    type="number"
+                    value={editTripForm.budget || ''}
+                    onChange={e => setEditTripForm({...editTripForm, budget: e.target.value === '' ? '' : parseFloat(e.target.value)})}
+                    className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-brand-vibrant outline-none font-bold text-base-content"
+                  />
+                </div>
+              </div>
+              <div className="pt-4">
+                <Button type="submit" className="w-full py-4 rounded-xl font-black bg-brand-deep hover:bg-brand-deep/90 text-white shadow-xl">
+                  Save Changes
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Regenerate Itinerary Modal */}
+      {showRegenerate && (
+        <div className="fixed inset-0 z-[200] bg-brand-deep/60 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-xl bg-base-100 rounded-3xl shadow-2xl overflow-hidden animate-scale-in relative border border-base-content/10">
+            <div className="p-8 border-b border-base-content/5 flex items-center justify-between bg-base-200/50">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-brand-vibrant/10 flex items-center justify-center text-brand-vibrant">
+                  <Zap size={24} />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-base-content">Regenerate Itinerary</h2>
+                  <p className="text-sm text-base-content/40">Let AI rebuild your schedule</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowRegenerate(false)}
+                className="w-10 h-10 rounded-xl bg-base-200 hover:bg-base-300 flex items-center justify-center transition-colors"
+                disabled={isRegenerating}
+              >
+                <X size={20} className="text-base-content/40" />
+              </button>
+            </div>
+            <form onSubmit={handleRegenerateSubmit} className="p-8 space-y-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Duration (Days)</label>
+                  <input 
+                    type="number"
+                    min="1"
+                    max="14"
+                    value={regenerateForm.days || ''}
+                    onChange={e => setRegenerateForm({...regenerateForm, days: e.target.value === '' ? '' : parseInt(e.target.value)})}
+                    className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-brand-vibrant outline-none font-bold text-base-content"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Pace</label>
+                  <div className="flex gap-2">
+                    {['relaxed', 'moderate', 'fast'].map(p => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setRegenerateForm({...regenerateForm, pace: p})}
+                        className={`flex-1 py-3 rounded-xl font-bold capitalize border-2 transition-all ${regenerateForm.pace === p ? 'bg-brand-vibrant/10 border-brand-vibrant text-brand-vibrant' : 'bg-base-200 border-transparent text-base-content/40 hover:bg-base-300'}`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Interests (Comma separated)</label>
+                  <textarea 
+                    value={regenerateForm.interests.join(', ')}
+                    onChange={e => setRegenerateForm({...regenerateForm, interests: e.target.value.split(',').map(i => i.trim())})}
+                    className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-brand-vibrant outline-none font-bold text-base-content"
+                    placeholder="Museums, Nightlife, Culture, Solo Safety..."
+                    rows="2"
+                  />
+                </div>
+              </div>
+              <div className="pt-4">
+                <Button 
+                  type="submit" 
+                  disabled={isRegenerating}
+                  className="w-full py-4 rounded-xl font-black bg-brand-vibrant hover:bg-brand-vibrant/90 text-white shadow-xl flex items-center justify-center gap-2"
+                >
+                  {isRegenerating ? (
+                    <>
+                      <Loader2 size={20} className="animate-spin" /> Regenerating...
+                    </>
+                  ) : (
+                    <>
+                      <Zap size={20} /> Build New Itinerary
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Itinerary Versions Modal */}
+      {showVersions && (
+        <div className="fixed inset-0 z-[200] bg-brand-deep/60 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-base-100 rounded-3xl shadow-2xl overflow-hidden animate-scale-in relative border border-base-content/10">
+            <div className="p-6 border-b border-base-content/5 flex items-center justify-between bg-base-200/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-sky-500/10 flex items-center justify-center text-sky-500">
+                  <Loader2 size={20} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-base-content">Itinerary Versions</h2>
+                  <p className="text-xs text-base-content/40">Restore a previous version</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowVersions(false)}
+                className="w-8 h-8 rounded-lg bg-base-200 hover:bg-base-300 flex items-center justify-center transition-colors"
+              >
+                <X size={18} className="text-base-content/40" />
+              </button>
+            </div>
+            <div className="p-4 max-h-80 overflow-y-auto">
+              {versions.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-sm text-base-content/60">No previous versions saved.</p>
+                  <p className="text-xs text-base-content/40 mt-1">When you regenerate, old versions are saved automatically.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {versions.map((version) => (
+                    <div 
+                      key={version.id}
+                      className="flex items-center justify-between p-4 rounded-xl bg-base-200 hover:bg-base-300 transition-colors"
+                    >
+                      <div>
+                        <p className="text-sm font-bold text-base-content">Version {version.version_number}</p>
+                        <p className="text-xs text-base-content/40">
+                          {new Date(version.created_at).toLocaleDateString('en-GB', { 
+                            day: 'numeric', 
+                            month: 'short',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                        {version.notes && (
+                          <p className="text-xs text-base-content/50 mt-1 line-clamp-1">{version.notes}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleRestoreVersion(version.id)}
+                        className="px-3 py-1.5 rounded-lg bg-brand-vibrant/10 text-brand-vibrant text-sm font-bold hover:bg-brand-vibrant/20 transition-colors"
+                      >
+                        Restore
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-base-content/5">
+              <button 
+                onClick={() => setShowVersions(false)}
+                className="w-full py-2.5 rounded-xl font-bold text-base-content/60 hover:bg-base-200 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Safety Check-in Modal */}
+      {showCheckIn && (
+        <div className="fixed inset-0 z-[200] bg-brand-deep/60 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-xl bg-base-100 rounded-3xl shadow-2xl overflow-hidden relative border border-base-content/10">
+            <SafetyCheckIn tripId={id} onClose={() => setShowCheckIn(false)} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default TripDetail;

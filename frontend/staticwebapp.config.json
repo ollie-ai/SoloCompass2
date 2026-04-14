@@ -1,0 +1,23 @@
+# Azure Static Web Apps configuration
+{
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": ["/static/*", "/assets/*"]
+  },
+  "routes": [
+    {
+      "route": "/api/*",
+      "rewrite": "/api/$1"
+    }
+  ],
+  "globalHeaders": {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "SAMEORIGIN",
+    "X-XSS-Protection": "1; mode=block",
+    "Referrer-Policy": "strict-origin-when-cross-origin"
+  },
+  "mimeTypes": {
+    ".json": "application/json",
+    ".js": "application/javascript"
+  }
+}

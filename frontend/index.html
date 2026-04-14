@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="solocompass">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <link rel="canonical" href="https://solocompass.app/" />
+    
+    <!-- Apply saved theme immediately to prevent flash - default to light theme -->
+    <script>
+      (function() {
+        try {
+          var stored = localStorage.getItem('solocompass-theme');
+          if (stored) {
+            var theme = JSON.parse(stored).state.theme;
+            if (theme && theme !== 'system') {
+              document.documentElement.setAttribute('data-theme', theme);
+            }
+          }
+        } catch(e) {}
+      })();
+    </script>
+    
+    <!-- Force primary color to ensure it's always applied -->
+    <style>
+      :root, [data-theme="solocompass"], [data-theme="solocompass-dark"] {
+        --color-primary: #10b981 !important;
+        --color-primary-content: #ffffff !important;
+      }
+      /* Fix text-primary class - only apply to text, not buttons with explicit colors */
+      .text-primary:not(.btn):not([class*="bg-"]) {
+        --tw-text-opacity: 1 !important;
+        color: #10b981 !important;
+      }
+      /* Background primary - apply with DaisyUI variable for proper content color */
+      .bg-primary:not(.btn) {
+        --tw-bg-opacity: 1 !important;
+        background-color: oklch(var(--p)) !important;
+      }
+      /* Button styles - use DaisyUI variables for proper content color */
+      .btn-primary, button.bg-primary, a.bg-primary {
+        background-color: oklch(var(--p)) !important;
+        border-color: oklch(var(--p)) !important;
+        color: oklch(var(--pc)) !important;
+      }
+      /* Secondary button styling */
+      .btn-secondary {
+        background-color: oklch(var(--s)) !important;
+        border-color: oklch(var(--s)) !important;
+        color: oklch(var(--sc)) !important;
+      }
+      /* Fix headings visibility */
+      h1, h2, h3, h4, h5, h6 {
+        color: oklch(var(--bc)) !important;
+      }
+      /* Hero status panel backgrounds - ensure readable text */
+      .hero-status-panel h1, .hero-status-panel h2, .hero-status-panel h3, 
+      .hero-status-panel span, .hero-status-panel div:not([class*="bg-"]) {
+        color: oklch(var(--bc)) !important;
+      }
+      /* Fix text contrast on semi-transparent text */
+      .text-base-content\/60, .text-base-content\/70, .text-base-content\/80 {
+        color: oklch(var(--bc) / 0.8) !important;
+      }
+      /* Fix white text on dark backgrounds in dashboard hero panels */
+      .dashboard-hero-panel .text-white, .status-panel .text-white {
+        color: oklch(var(--bc)) !important;
+      }
+      /* Ensure progress bars work */
+      .bg-white\/10 { background-color: oklch(var(--b3) / 0.3) !important; }
+    </style>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#10b981" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="SoloCompass" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="SoloCompass" />
+    <meta name="msapplication-TileColor" content="#10b981" />
+    <meta name="msapplication-tap-highlight" content="no" />
+    
+    <!-- Favicons -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/logo192.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    
+    <!-- Open Graph / FB -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://solocompass.app/" />
+    <meta property="og:title" content="SoloCompass — Your AI Solo Travel Companion" />
+    <meta property="og:description" content="Plan safer, smarter, and more immersive solo trips with AI-powered itineraries and real-time safety data." />
+    <meta property="og:image" content="https://solocompass.app/og-image.png" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://solocompass.app/" />
+    <meta property="twitter:title" content="SoloCompass — Your AI Solo Travel Companion" />
+    <meta property="twitter:description" content="Navigate your solo adventures with AI-powered itineraries." />
+    <meta property="twitter:image" content="https://solocompass.app/og-image.png" />
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- React Grid Layout CSS -->
+
+    
+    <title>SoloCompass — Your AI Solo Travel Companion</title>
+    <meta name="description" content="SoloCompass: Your AI-powered solo travel companion. Plan safer, smarter trips with AI itineraries, safety alerts, and travel guides." />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+    
+    <!-- Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((registration) => {
+              // Check for updates
+              registration.addEventListener('updatefound', () => {
+                const newWorker = registration.installing;
+                newWorker.addEventListener('statechange', () => {
+                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    // Optionally show update notification
+                    const updateBanner = document.createElement('div');
+                    updateBanner.className = 'fixed bottom-4 left-4 right-4 bg-emerald-600 text-white p-4 rounded-xl shadow-lg z-50';
+                    updateBanner.innerHTML = `
+                      <p class="font-medium">New version available!</p>
+                      <p class="text-sm text-emerald-100">Click to update</p>
+                    `;
+                    updateBanner.onclick = () => newWorker.postMessage('skipWaiting');
+                    document.body.appendChild(updateBanner);
+                  }
+                });
+              });
+            })
+            .catch((error) => {
+              console.error('[App] Service Worker registration failed:', error);
+            });
+        });
+      }
+    </script>
+  </body>
+</html>

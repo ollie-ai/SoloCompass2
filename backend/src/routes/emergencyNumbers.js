@@ -1,0 +1,66 @@
+import express from 'express';
+import { getEmergencyNumbers, getAllEmergencyNumbers, isAvailable } from '../services/emergencyNumbersService.js';
+
+const router = express.Router();
+
+router.get('/', async (req, res) => {
+  try {
+    const { country } = req.query;
+    
+    if (country) {
+      const numbers = await getEmergencyNumbers(country);
+      if (!numbers) {
+        return res.status(404).json({ 
+          error: 'Not available',
+          country,
+          available: false
+        });
+      }
+      return res.json(numbers);
+    }
+    
+    const allNumbers = await getAllEmergencyNumbers();
+    res.json({ 
+      count: Object.keys(allNumbers).length,
+      countries: allNumbers
+    });
+  } catch (error) {
+    console.error('[EmergencyNumbers] Error:', error.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/:countryCode', async (req, res) => {
+  try {
+    const { countryCode } = req.params;
+    
+    const numbers = await getEmergencyNumbers(countryCode);
+    
+    if (!numbers) {
+      return res.status(404).json({ 
+        error: 'Not available',
+        countryCode,
+        available: false,
+        message: `Emergency numbers for ${countryCode} are not available in our dataset`
+      });
+    }
+    
+    res.json(numbers);
+  } catch (error) {
+    console.error('[EmergencyNumbers] Error:', error.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/check/:countryCode', async (req, res) => {
+  try {
+    const { countryCode } = req.params;
+    const available = isAvailable(countryCode);
+    res.json({ countryCode, available });
+  } catch (error) {
+    console.error('[EmergencyNumbers] Error:', error.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+export default router;

@@ -1,0 +1,21 @@
+{
+  "name": "solocompass",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "predev": "node scripts/stop-ports.js",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:frontend": "npm run dev -w solocompass-frontend",
+    "dev:backend": "npm run dev -w solocompass-backend",
+    "build": "npm run build -w solocompass-frontend",
+    "start": "npm run start -w solocompass-backend"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

@@ -97,6 +97,7 @@ async function bootstrap() {
     const { default: aiRoutes } = await import('./routes/ai.js');
     const { default: atlasRoutes } = await import('./routes/atlas.js');
     const { default: featureFlagRoutes } = await import('./routes/featureFlags.js');
+    const { default: searchRoutes } = await import('./routes/search.js');
     const { default: translateRoutes } = await import('./routes/translate.js');
     const { default: helpRoutes } = await import('./routes/help.js');
     const { default: webhookRoutes } = await import('./routes/webhooks.js');
@@ -192,6 +193,7 @@ const { default: countriesRoutes } = await import('./routes/countries.js');
     app.use('/api/directions', directionsRoutes);
     app.use('/api/v1/maps', mapsRoutes);
     app.use('/api/v1/content', contentRoutes);
+    app.use('/api/search', searchRoutes);
     app.use('/api/exchange', exchangeRoutes);
     app.use('/api/packing-lists', packingListsRoutes);
     app.use('/api/categories', categoryRoutes);

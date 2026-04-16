@@ -31,7 +31,7 @@ const BudgetTracker = ({ tripId, tripName, onClose }) => {
     amount: '',
     currency: 'USD',
     type: 'expense',
-    receiptUrl: ''
+    receipt_url: ''
   });
   const [budgetSettings, setBudgetSettings] = useState({
     totalBudget: '',
@@ -132,7 +132,7 @@ const BudgetTracker = ({ tripId, tripName, onClose }) => {
         amount: parseFloat(newItem.amount),
         currency: newItem.currency,
         type: newItem.type,
-        receiptUrl: newItem.receiptUrl || undefined
+        receipt_url: newItem.receipt_url || undefined
       });
       setBudget(prev => ({
         ...prev,
@@ -153,7 +153,7 @@ const BudgetTracker = ({ tripId, tripName, onClose }) => {
         amount: '',
         currency: budget?.currency || 'USD',
         type: 'expense',
-        receiptUrl: ''
+        receipt_url: ''
       });
       setShowAddExpense(false);
       toast.success(newItem.type === 'expense' ? 'Expense added!' : 'Income added!');
@@ -470,8 +470,8 @@ const BudgetTracker = ({ tripId, tripName, onClose }) => {
             <Receipt size={14} className="text-base-content/30 flex-shrink-0" />
             <input
               type="url"
-              value={newItem.receiptUrl}
-              onChange={e => setNewItem(prev => ({ ...prev, receiptUrl: e.target.value }))}
+              value={newItem.receipt_url}
+              onChange={e => setNewItem(prev => ({ ...prev, receipt_url: e.target.value }))}
               placeholder="Receipt URL (optional)"
               className="w-full px-3 py-2.5 border-2 border-base-300 bg-base-100 rounded-lg text-sm font-medium focus:ring-2 focus:ring-brand-vibrant/20 focus:border-brand-vibrant outline-none text-base-content"
             />

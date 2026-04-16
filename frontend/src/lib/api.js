@@ -288,7 +288,7 @@ export const getBudgetSummary = async (tripId) => {
 
 // Trip templates
 export const getTripTemplates = async () => {
-  const response = await api.get('/trips/templates', { headers: getAuthHeaders() })
+  const response = await api.get('/trips/templates/list', { headers: getAuthHeaders() })
   return response.data
 }
 

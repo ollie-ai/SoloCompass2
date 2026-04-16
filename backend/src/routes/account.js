@@ -41,8 +41,14 @@ router.get('/data-export', exportLimiter, async (req, res) => {
 router.delete('/', deleteLimiter, async (req, res) => {
   try {
     await deleteUserAccountCascade(req.userId);
-    res.clearCookie('token');
-    res.clearCookie('refreshToken');
+    const cookieOptions = {
+      path: '/',
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
+    };
+    res.clearCookie('token', cookieOptions);
+    res.clearCookie('refreshToken', cookieOptions);
     res.json({
       success: true,
       data: { message: 'Account and associated data deleted' }

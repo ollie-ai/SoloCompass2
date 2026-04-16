@@ -1,6 +1,55 @@
 import db from '../db.js';
 import logger from './logger.js';
 
+const ALLOWED_TABLES = new Set([
+  'users',
+  'profiles',
+  'trips',
+  'activities',
+  'budget_entries',
+  'budgets',
+  'budget_items',
+  'journal_entries',
+  'journal_photos',
+  'travel_buddies',
+  'buddy_messages',
+  'buddy_conversations',
+  'notifications',
+  'user_settings',
+  'emergency_contacts',
+  'guardian_acknowledgements',
+  'check_ins',
+  'notification_preferences',
+  'itinerary_days',
+  'accommodations',
+  'bookings',
+  'trip_documents',
+  'sessions',
+  'notification_delivery_logs',
+  'scheduled_check_ins',
+  'resources',
+  'quiz_responses',
+  'quiz_results',
+  'webhook_subscriptions',
+  'webhook_subs',
+  'push_subscriptions',
+  'ai_usage',
+  'trip_checklist_items',
+  'trip_collaborators',
+  'trip_shares',
+  'buddy_requests',
+  'buddy_calls',
+  'buddy_blocks',
+  'places'
+]);
+
+function safeTableName(tableName) {
+  if (!ALLOWED_TABLES.has(tableName)) {
+    throw new Error(`Table "${tableName}" is not allowed for export/deletion`);
+  }
+  return tableName;
+}
+
 async function tableExists(tableName) {
   const table = await db.get(
     `SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ? LIMIT 1`,
@@ -19,17 +68,19 @@ async function tableHasColumn(tableName, columnName) {
 }
 
 async function fetchRowsByUser(tableName, userId) {
-  if (!await tableExists(tableName)) return [];
-  if (!await tableHasColumn(tableName, 'user_id')) return [];
-  return db.all(`SELECT * FROM ${tableName} WHERE user_id = ? ORDER BY id ASC`, userId);
+  const safeTable = safeTableName(tableName);
+  if (!await tableExists(safeTable)) return [];
+  if (!await tableHasColumn(safeTable, 'user_id')) return [];
+  return db.all(`SELECT * FROM ${safeTable} WHERE user_id = ? ORDER BY id ASC`, userId);
 }
 
 async function fetchRowsByTrip(tableName, tripIds) {
+  const safeTable = safeTableName(tableName);
   if (!tripIds.length) return [];
-  if (!await tableExists(tableName)) return [];
-  if (!await tableHasColumn(tableName, 'trip_id')) return [];
+  if (!await tableExists(safeTable)) return [];
+  if (!await tableHasColumn(safeTable, 'trip_id')) return [];
   const placeholders = tripIds.map(() => '?').join(', ');
-  return db.all(`SELECT * FROM ${tableName} WHERE trip_id IN (${placeholders}) ORDER BY id ASC`, ...tripIds);
+  return db.all(`SELECT * FROM ${safeTable} WHERE trip_id IN (${placeholders}) ORDER BY id ASC`, ...tripIds);
 }
 
 export async function generateUserDataExport(userId) {
@@ -65,7 +116,7 @@ export async function generateUserDataExport(userId) {
   const exportPayload = {
     metadata: {
       generated_at: new Date().toISOString(),
-      gdpr_response_deadline_at: new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)).toISOString(),
+      gdpr_request_due_at: new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)).toISOString(),
       format: 'json'
     },
     account: {
@@ -103,17 +154,19 @@ export async function generateUserDataExport(userId) {
 }
 
 async function deleteByUserId(tx, tableName, userId) {
-  if (!await tableExists(tableName)) return;
-  if (!await tableHasColumn(tableName, 'user_id')) return;
-  await tx.run(`DELETE FROM ${tableName} WHERE user_id = ?`, userId);
+  const safeTable = safeTableName(tableName);
+  if (!await tableExists(safeTable)) return;
+  if (!await tableHasColumn(safeTable, 'user_id')) return;
+  await tx.run(`DELETE FROM ${safeTable} WHERE user_id = ?`, userId);
 }
 
 async function deleteByTripIds(tx, tableName, tripIds) {
+  const safeTable = safeTableName(tableName);
   if (!tripIds.length) return;
-  if (!await tableExists(tableName)) return;
-  if (!await tableHasColumn(tableName, 'trip_id')) return;
+  if (!await tableExists(safeTable)) return;
+  if (!await tableHasColumn(safeTable, 'trip_id')) return;
   const placeholders = tripIds.map(() => '?').join(', ');
-  await tx.run(`DELETE FROM ${tableName} WHERE trip_id IN (${placeholders})`, ...tripIds);
+  await tx.run(`DELETE FROM ${safeTable} WHERE trip_id IN (${placeholders})`, ...tripIds);
 }
 
 export async function deleteUserAccountCascade(userId) {

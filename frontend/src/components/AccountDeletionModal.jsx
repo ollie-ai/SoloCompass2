@@ -15,7 +15,7 @@ export default function AccountDeletionModal({ isOpen, isDeleting, onClose, onCo
             <AlertTriangle size={18} />
             Confirm account deletion
           </h3>
-          <button onClick={onClose} aria-label="Close" className="p-2 rounded-lg hover:bg-base-200">
+          <button onClick={onClose} aria-label="Close" disabled={isDeleting} className="p-2 rounded-lg hover:bg-base-200 disabled:opacity-40">
             <X size={16} />
           </button>
         </div>
@@ -35,7 +35,7 @@ export default function AccountDeletionModal({ isOpen, isDeleting, onClose, onCo
             className="w-full px-3 py-2 rounded-lg border border-base-300 bg-base-100 focus:outline-none focus:ring-2 focus:ring-error/40"
           />
           <div className="flex gap-2 justify-end">
-            <button onClick={onClose} className="px-4 py-2 rounded-lg border border-base-300 text-base-content/70 font-bold">
+            <button onClick={onClose} disabled={isDeleting} className="px-4 py-2 rounded-lg border border-base-300 text-base-content/70 font-bold disabled:opacity-50">
               Cancel
             </button>
             <button

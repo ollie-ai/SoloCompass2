@@ -235,4 +235,113 @@ export const getNearbyPlaces = async (lat, lng, type = null, radius = 1000) => {
   return response.data
 }
 
+// Journal
+export const getJournalEntries = async (tripId) => {
+  const response = await api.get(`/journal/${tripId}`, { headers: getAuthHeaders() })
+  return response.data
+}
+
+export const getJournalEntry = async (tripId, entryId) => {
+  const response = await api.get(`/journal/${tripId}/${entryId}`, { headers: getAuthHeaders() })
+  return response.data
+}
+
+export const createJournalEntry = async (tripId, data) => {
+  const response = await api.post(`/journal/${tripId}`, data, { headers: getAuthHeaders() })
+  return response.data
+}
+
+export const updateJournalEntry = async (tripId, entryId, data) => {
+  const response = await api.put(`/journal/${tripId}/${entryId}`, data, { headers: getAuthHeaders() })
+  return response.data
+}
+
+export const deleteJournalEntry = async (tripId, entryId) => {
+  const response = await api.delete(`/journal/${tripId}/${entryId}`, { headers: getAuthHeaders() })
+  return response.data
+}
+
+export const addJournalPhoto = async (tripId, entryId, data) => {
+  const response = await api.post(`/journal/${tripId}/${entryId}/photos`, data, { headers: getAuthHeaders() })
+  return response.data
+}
+
+export const deleteJournalPhoto = async (tripId, entryId, photoId) => {
+  const response = await api.delete(`/journal/${tripId}/${entryId}/photos/${photoId}`, { headers: getAuthHeaders() })
+  return response.data
+}
+
+// Transport
+export const getTransportSegments = async (tripId) => {
+  const response = await api.get(`/transport/${tripId}`, { headers: getAuthHeaders() })
+  return response.data
+}
+
+export const createTransportSegment = async (tripId, data) => {
+  const response = await api.post(`/transport/${tripId}`, data, { headers: getAuthHeaders() })
+  return response.data
+}
+
+export const updateTransportSegment = async (tripId, segmentId, data) => {
+  const response = await api.put(`/transport/${tripId}/${segmentId}`, data, { headers: getAuthHeaders() })
+  return response.data
+}
+
+export const deleteTransportSegment = async (tripId, segmentId) => {
+  const response = await api.delete(`/transport/${tripId}/${segmentId}`, { headers: getAuthHeaders() })
+  return response.data
+}
+
+export const saveBoardingPass = async (tripId, segmentId, data) => {
+  const response = await api.post(`/transport/${tripId}/${segmentId}/boarding-pass`, data, { headers: getAuthHeaders() })
+  return response.data
+}
+
+// Trip legs
+export const getTripLegs = async (tripId) => {
+  const response = await api.get(`/trips/${tripId}/legs`, { headers: getAuthHeaders() })
+  return response.data
+}
+
+export const createTripLeg = async (tripId, data) => {
+  const response = await api.post(`/trips/${tripId}/legs`, data, { headers: getAuthHeaders() })
+  return response.data
+}
+
+export const updateTripLeg = async (tripId, legId, data) => {
+  const response = await api.put(`/trips/${tripId}/legs/${legId}`, data, { headers: getAuthHeaders() })
+  return response.data
+}
+
+export const deleteTripLeg = async (tripId, legId) => {
+  const response = await api.delete(`/trips/${tripId}/legs/${legId}`, { headers: getAuthHeaders() })
+  return response.data
+}
+
+// Itinerary days
+export const addItineraryDay = async (tripId, data = {}) => {
+  const response = await api.post(`/trips/${tripId}/itinerary/days`, data, { headers: getAuthHeaders() })
+  return response.data
+}
+
+export const deleteItineraryDay = async (tripId, dayId) => {
+  const response = await api.delete(`/trips/${tripId}/itinerary/days/${dayId}`, { headers: getAuthHeaders() })
+  return response.data
+}
+
+// Activity reorder
+export const reorderActivities = async (tripId, activities) => {
+  const response = await api.put(`/trips/${tripId}/activities/reorder`, { activities }, { headers: getAuthHeaders() })
+  return response.data
+}
+
+// Budget CSV export
+export const exportBudgetCSV = async (tripId) => {
+  const response = await api.get(`/budget/${tripId}/export-csv`, {
+    headers: getAuthHeaders(),
+    responseType: 'blob'
+  })
+  return response.data
+}
+
 export default api;

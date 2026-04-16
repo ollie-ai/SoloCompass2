@@ -93,17 +93,26 @@ const PackingList = ({ tripId, tripName, onClose }) => {
   };
 
   const toggleItem = async (item) => {
+    // Optimistic update first
+    const newPacked = !item.isPacked;
+    setList(prev => ({
+      ...prev,
+      items: (prev.items || []).map(i =>
+        i.id === item.id ? { ...i, isPacked: newPacked } : i
+      )
+    }));
     try {
       await api.put(`/packing-lists/${list.id}/items/${item.id}`, {
-        isPacked: !item.isPacked
+        isPacked: newPacked
       });
+    } catch (error) {
+      // Rollback on failure
       setList(prev => ({
         ...prev,
-        items: (prev.items || []).map(i => 
-          i.id === item.id ? { ...i, isPacked: !i.isPacked } : i
+        items: (prev.items || []).map(i =>
+          i.id === item.id ? { ...i, isPacked: item.isPacked } : i
         )
       }));
-    } catch (error) {
       toast.error('Failed to update item');
     }
   };

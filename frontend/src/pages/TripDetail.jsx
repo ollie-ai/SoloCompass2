@@ -82,6 +82,10 @@ import TransitDirections from '../components/TransitDirections';
 import AffiliateLinks from '../components/AffiliateLinks';
 import SafetyCheckIn from '../components/SafetyCheckIn';
 import SoloSafetyHub from '../components/SoloSafetyHub';
+import TransportTimeline from '../components/trip/TransportTimeline';
+import ShareTripModal from '../components/trip/ShareTripModal';
+import TripStatusBadge from '../components/trip/TripStatusBadge';
+import PlaceMap from '../components/trip/PlaceMap';
 import { FEATURES } from '../config/features';
 // import TripItinerary from '../components/trip/TripItinerary';
 // import TripSidebar from '../components/trip/TripSidebar';
@@ -111,6 +115,8 @@ function TripDetail() {
   const [showVersions, setShowVersions] = useState(false);
   const [versions, setVersions] = useState([]);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [showTransport, setShowTransport] = useState(false);
 
   const [editTripForm, setEditTripForm] = useState({
     name: '',
@@ -158,8 +164,8 @@ function TripDetail() {
     name: '',
     address: '',
     category: 'restaurant',
+    status: 'want_to_visit',
     notes: '',
-    visited: false
   });
   
   const [accommodations, setAccommodations] = useState([]);
@@ -579,7 +585,7 @@ function TripDetail() {
         setSavedPlaces([...savedPlaces, response.data]);
         toast.success('Place saved');
       }
-      setPlaceForm({ name: '', address: '', category: 'restaurant', notes: '', visited: false });
+      setPlaceForm({ name: '', address: '', category: 'restaurant', status: 'want_to_visit', notes: '' });
       setShowPlaces(false);
     } catch (error) {
       toast.error('Failed to save place');
@@ -652,12 +658,13 @@ function TripDetail() {
     }
   };
 
-  const togglePlaceVisited = async (id) => {
-    const place = savedPlaces.find(p => p.id === id);
+  const togglePlaceVisited = async (placeId) => {
+    const place = savedPlaces.find(p => p.id === placeId);
     if (!place) return;
+    const newStatus = place.status === 'visited' ? 'want_to_visit' : 'visited';
     try {
-      await updateTripPlace(id, { visited: !place.visited });
-      setSavedPlaces(savedPlaces.map(p => p.id === id ? { ...p, visited: !p.visited } : p));
+      await updateTripPlace(placeId, { status: newStatus });
+      setSavedPlaces(savedPlaces.map(p => p.id === placeId ? { ...p, status: newStatus } : p));
     } catch (error) {
       toast.error('Failed to update place');
     }
@@ -1034,6 +1041,51 @@ function TripDetail() {
              </div>
              <h4 className="text-lg font-black text-violet-900 mb-1">Saved Places</h4>
              <p className="text-sm text-violet-700 font-medium">{savedPlaces.length > 0 ? `${savedPlaces.length} place(s)` : 'Spots to explore'}</p>
+           </button>
+
+           {/* Travel Journal Card */}
+           <Link
+             to={`/trips/${id}/journal`}
+             className="w-full p-8 rounded-xl bg-base-200 border-2 border-purple-500/20 shadow-lg hover:shadow-xl hover:border-purple-500/40 transition-all group text-left block"
+           >
+             <div className="flex items-center justify-between mb-4">
+               <div className="w-14 h-14 rounded-xl bg-purple-500/10 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
+                 <FileText size={28} className="text-purple-500" />
+               </div>
+               <ChevronRight size={20} className="text-purple-400 group-hover:translate-x-1 transition-transform" />
+             </div>
+             <h4 className="text-lg font-black text-base-content mb-1">Travel Journal</h4>
+             <p className="text-sm text-base-content/60 font-medium">Record your memories</p>
+           </Link>
+
+           {/* Transport Card */}
+           <button
+             onClick={() => setShowTransport(true)}
+             className="w-full p-8 rounded-xl bg-base-200 border-2 border-sky-500/20 shadow-lg hover:shadow-xl hover:border-sky-500/40 transition-all group text-left"
+           >
+             <div className="flex items-center justify-between mb-4">
+               <div className="w-14 h-14 rounded-xl bg-sky-500/10 flex items-center justify-center group-hover:bg-sky-500/20 transition-colors">
+                 <Plane size={28} className="text-sky-500" />
+               </div>
+               <ChevronRight size={20} className="text-sky-400 group-hover:translate-x-1 transition-transform" />
+             </div>
+             <h4 className="text-lg font-black text-base-content mb-1">Transport</h4>
+             <p className="text-sm text-base-content/60 font-medium">Flights, trains, buses</p>
+           </button>
+
+           {/* Share Card */}
+           <button
+             onClick={() => setShowShareModal(true)}
+             className="w-full p-8 rounded-xl bg-base-200 border-2 border-teal-500/20 shadow-lg hover:shadow-xl hover:border-teal-500/40 transition-all group text-left"
+           >
+             <div className="flex items-center justify-between mb-4">
+               <div className="w-14 h-14 rounded-xl bg-teal-500/10 flex items-center justify-center group-hover:bg-teal-500/20 transition-colors">
+                 <Users size={28} className="text-teal-500" />
+               </div>
+               <ChevronRight size={20} className="text-teal-400 group-hover:translate-x-1 transition-transform" />
+             </div>
+             <h4 className="text-lg font-black text-base-content mb-1">Share Trip</h4>
+             <p className="text-sm text-base-content/60 font-medium">Share your itinerary</p>
            </button>
 
            {FEATURES.FLIGHTS && (
@@ -1919,6 +1971,11 @@ function TripDetail() {
               </button>
             </div>
             <div className="p-8 space-y-6">
+              {savedPlaces.length > 0 && (
+                <div className="mb-6">
+                  <PlaceMap places={savedPlaces} />
+                </div>
+              )}
               {savedPlaces.length > 0 ? (
                 <div className="space-y-4">
                   {savedPlaces.map(place => (
@@ -1927,12 +1984,12 @@ function TripDetail() {
                         <div className="flex items-start gap-4">
                           <button 
                             onClick={() => togglePlaceVisited(place.id)}
-                            className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${place.visited ? 'bg-success/20 text-success' : 'bg-violet-50 text-violet-600 hover:bg-violet-100'}`}
+                            className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${place.status === 'visited' ? 'bg-success/20 text-success' : 'bg-violet-50 text-violet-600 hover:bg-violet-100'}`}
                           >
-                            {place.visited ? <CheckCircle2 size={24} /> : getPlaceIcon(place.category)}
+                            {place.status === 'visited' ? <CheckCircle2 size={24} /> : getPlaceIcon(place.category)}
                           </button>
                           <div>
-                            <h4 className={`text-lg font-black ${place.visited ? 'text-base-content/40 line-through' : 'text-base-content'}`}>{place.name}</h4>
+                            <h4 className={`text-lg font-black ${place.status === 'visited' ? 'text-base-content/40 line-through' : 'text-base-content'}`}>{place.name}</h4>
                             {place.address && (
                               <p className="text-sm text-base-content/40 font-medium flex items-center gap-1 mt-1">
                                 <MapPin size={14} /> {place.address}
@@ -1940,7 +1997,11 @@ function TripDetail() {
                             )}
                             <div className="flex items-center gap-2 mt-2">
                               <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md bg-violet-100 text-violet-700">{place.category}</span>
-                              {place.visited && <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md bg-success/20 text-success">Visited</span>}
+                              {place.status && place.status !== 'want_to_visit' && (
+                                <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${place.status === 'visited' ? 'bg-success/20 text-success' : place.status === 'skipped' ? 'bg-base-300 text-base-content/40' : 'bg-amber-100 text-amber-700'}`}>
+                                  {place.status.replace('_', ' ')}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -2000,6 +2061,19 @@ function TripDetail() {
                       <option value="bar">Bar</option>
                       <option value="shop">Shop</option>
                       <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-widest text-base-content/40 mb-2">Status</label>
+                    <select
+                      value={placeForm.status || 'want_to_visit'}
+                      onChange={e => setPlaceForm({...placeForm, status: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-base-content/10 bg-base-100 focus:ring-2 focus:ring-violet-500 outline-none font-bold text-base-content"
+                    >
+                      <option value="want_to_visit">Want to Visit</option>
+                      <option value="planned">Planned</option>
+                      <option value="visited">Visited</option>
+                      <option value="skipped">Skipped</option>
                     </select>
                   </div>
                   <div className="md:col-span-2">
@@ -2262,6 +2336,32 @@ function TripDetail() {
         <div className="fixed inset-0 z-[200] bg-brand-deep/60 backdrop-blur-md flex items-center justify-center p-4">
           <div className="w-full max-w-xl bg-base-100 rounded-3xl shadow-2xl overflow-hidden relative border border-base-content/10">
             <SafetyCheckIn tripId={id} onClose={() => setShowCheckIn(false)} />
+          </div>
+        </div>
+      )}
+
+      {/* Share Trip Modal */}
+      {showShareModal && (
+        <ShareTripModal
+          tripId={id}
+          tripName={trip?.name || ''}
+          onClose={() => setShowShareModal(false)}
+        />
+      )}
+
+      {/* Transport Timeline Modal */}
+      {showTransport && (
+        <div className="fixed inset-0 z-[200] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="w-full sm:max-w-2xl bg-base-100 rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-base-content/10 shrink-0">
+              <h2 className="text-lg font-black">Transport</h2>
+              <button onClick={() => setShowTransport(false)} className="p-1.5 rounded-lg hover:bg-base-200 transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-4">
+              <TransportTimeline tripId={id} />
+            </div>
           </div>
         </div>
       )}

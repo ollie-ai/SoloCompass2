@@ -35,6 +35,17 @@ const passwordResetLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const oauthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: {
+    success: false,
+    error: { code: 'TOO_MANY_REQUESTS', message: 'Too many OAuth attempts, please try again later' }
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Lazy JWT secret getter - avoids fatal throw on import
 const getSecret = () => {
   const secret = getJWTSecret();
@@ -891,12 +902,12 @@ router.get('/verify', async (req, res) => {
 });
 
 // --- Google OAuth ---
-router.get('/google', passport.authenticate('google', { 
+router.get('/google', oauthLimiter, passport.authenticate('google', { 
   scope: ['profile', 'email'],
   prompt: 'select_account' 
 }));
 
-router.get('/google/callback', async (req, res, next) => {
+router.get('/google/callback', oauthLimiter, async (req, res, next) => {
   passport.authenticate('google', { session: false }, async (err, user, info) => {
     try {
       if (err) {
@@ -915,7 +926,7 @@ router.get('/google/callback', async (req, res, next) => {
 });
 
 // --- Facebook OAuth ---
-router.get('/facebook', (req, res) => {
+router.get('/facebook', oauthLimiter, (req, res) => {
   const facebookClientId = process.env.FACEBOOK_APP_ID || process.env.FACEBOOK_CLIENT_ID;
   if (!facebookClientId) {
     return res.status(501).json({
@@ -936,7 +947,7 @@ router.get('/facebook', (req, res) => {
   return res.redirect(oauthUrl.toString());
 });
 
-router.get('/facebook/callback', async (req, res) => {
+router.get('/facebook/callback', oauthLimiter, async (req, res) => {
   const facebookClientId = process.env.FACEBOOK_APP_ID || process.env.FACEBOOK_CLIENT_ID;
   const facebookClientSecret = process.env.FACEBOOK_APP_SECRET || process.env.FACEBOOK_CLIENT_SECRET;
   const callbackUrl = `${BACKEND_URL}/api/auth/facebook/callback`;
@@ -1002,7 +1013,7 @@ router.get('/facebook/callback', async (req, res) => {
 });
 
 // --- Apple Sign-In ---
-router.get('/apple', (req, res) => {
+router.get('/apple', oauthLimiter, (req, res) => {
   const appleClientId = process.env.APPLE_CLIENT_ID;
   if (!appleClientId) {
     return res.status(501).json({
@@ -1027,7 +1038,7 @@ router.get('/apple', (req, res) => {
   return res.redirect(oauthUrl.toString());
 });
 
-router.post('/apple/callback', async (req, res) => {
+router.post('/apple/callback', oauthLimiter, async (req, res) => {
   const expectedAudiences = (process.env.APPLE_CLIENT_IDS || process.env.APPLE_CLIENT_ID || '')
     .split(',')
     .map((value) => value.trim())
@@ -1085,7 +1096,7 @@ router.post('/apple/callback', async (req, res) => {
   }
 });
 
-router.get('/apple/callback', (req, res) => {
+router.get('/apple/callback', oauthLimiter, (req, res) => {
   return res.redirect(getOAuthErrorRedirect('apple', 'invalid_callback_method'));
 });
 

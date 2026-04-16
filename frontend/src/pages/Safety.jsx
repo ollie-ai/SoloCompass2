@@ -21,6 +21,18 @@ import ReturnPlanSetup from '../components/safety/ReturnPlanSetup';
 import SafetyMapOverlay from '../components/safety/SafetyMapOverlay';
 import EmbassyFinder from '../components/safety/EmbassyFinder';
 import LocationSharingToggle from '../components/safety/LocationSharingToggle';
+import CheckInScheduler from '../components/safety/CheckInScheduler';
+import CheckInStatus from '../components/safety/CheckInStatus';
+import CheckInHistory from '../components/safety/CheckInHistory';
+import CheckInReminder from '../components/safety/CheckInReminder';
+import GuardianList from '../components/safety/GuardianList';
+import GuardianTravellerCard from '../components/safety/GuardianTravellerCard';
+import ReturnPlanCard from '../components/safety/ReturnPlanCard';
+import EmergencyReturnActivation from '../components/safety/EmergencyReturnActivation';
+import NearestSafeLocations from '../components/safety/NearestSafeLocations';
+import EmergencyServicesCard from '../components/safety/EmergencyServicesCard';
+import NearbyHospitals from '../components/safety/NearbyHospitals';
+import offlineStorage from '../lib/offlineStorage';
 
 const Skeleton = ({ className }) => (
   <div className={`bg-base-content/5 rounded-lg animate-pulse ${className}`} />
@@ -181,7 +193,9 @@ export default function Safety() {
       api.get('/return-plan').then((res) => {
         if (res.data?.success) {
           const plans = res.data.data;
-          setReturnPlan(Array.isArray(plans) ? plans[0] || null : plans);
+          const plan = Array.isArray(plans) ? plans[0] || null : plans;
+          setReturnPlan(plan);
+          if (plan) offlineStorage.setReturnPlan(plan);
         }
       }).catch(() => null);
     } catch (err) {
@@ -1019,80 +1033,48 @@ export default function Safety() {
             )}
           </div>
 
-          {/* Scheduled Check-Ins */}
+          {/* Scheduled Check-Ins — CheckInReminder + CheckInStatus + CheckInScheduler */}
           <div className="glass-card p-6 rounded-3xl">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-black text-base-content text-base">Scheduled check-ins</h3>
-              <button
-                onClick={() => setShowScheduledForm(true)}
-                className="px-4 py-2 bg-brand-vibrant text-white rounded-xl font-bold text-sm hover:bg-emerald-600 transition-colors flex items-center gap-1.5 shadow-md shadow-brand-vibrant/25"
-              >
-                <Plus size={14} /> Schedule
-              </button>
             </div>
 
-            {scheduledCheckIns.length === 0 && !activeRecurringSchedule ? (
-              <div className="text-center py-6">
-                <p className="text-base-content/60 text-sm font-medium mb-1">No scheduled check-ins</p>
-                <p className="text-base-content/40 text-xs max-w-xs mx-auto">Set up automatic check-ins so SoloCompass can monitor your safety on a schedule.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {scheduledCheckIns.map((scheduled) => (
-                  <div key={scheduled.id} className="flex items-center justify-between p-4 bg-base-200 rounded-xl">
-                    <div className="flex items-center gap-3">
-                      <Calendar className="text-brand-vibrant" size={20} />
-                      <div>
-                        <p className="font-bold text-base-content text-sm">{formatDateTime(scheduled.scheduledTime)}</p>
-                        <p className="text-xs text-base-content/40 font-medium">{getTimeUntil(scheduled.scheduledTime)}</p>
-                      </div>
-                    </div>
-                    <button onClick={() => handleCancelScheduled(scheduled.id)} className="text-base-content/40 hover:text-error transition-colors">
-                      <XCircle size={18} />
-                    </button>
-                  </div>
-                ))}
-
-                {activeRecurringSchedule && (
-                  <div className="p-4 bg-brand-vibrant/5 border border-brand-vibrant/20 rounded-xl">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${activeRecurringSchedule.status === 'paused' ? 'bg-warning/100' : 'bg-success/100 animate-pulse'}`} />
-                        <span className="font-bold text-base-content text-sm">
-                          {activeRecurringSchedule.status === 'paused' ? 'Paused' : 'Active'} — {INTERVAL_OPTIONS.find(o => o.value === activeRecurringSchedule.interval)?.label}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 text-xs">
-                      <div>
-                        <p className="text-base-content/40">Next check-in</p>
-                        <p className="font-bold text-base-content">{activeRecurringSchedule.nextCheckIn ? formatDateTime(activeRecurringSchedule.nextCheckIn) : '—'}</p>
-                      </div>
-                      <div>
-                        <p className="text-base-content/40">Missed</p>
-                        <p className="font-bold text-base-content">{activeRecurringSchedule.missedCount || 0}</p>
-                      </div>
-                      <div>
-                        <p className="text-base-content/40">Last check-in</p>
-                        <p className="font-bold text-base-content">{activeRecurringSchedule.lastCheckIn ? formatDateTime(activeRecurringSchedule.lastCheckIn) : 'None'}</p>
-                      </div>
-                      <div>
-                        <p className="text-base-content/40">Last status</p>
-                        <p className="font-bold text-base-content">{activeRecurringSchedule.lastCheckInStatus || '—'}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2 mt-3">
-                      {activeRecurringSchedule.status === 'paused' ? (
-                        <button onClick={handleResumeRecurringSchedule} className="flex-1 py-2 bg-brand-vibrant text-white rounded-lg font-bold text-xs hover:bg-emerald-600 transition-colors">Resume</button>
-                      ) : (
-                        <button onClick={handlePauseRecurringSchedule} className="flex-1 py-2 bg-base-300 text-base-content/80 rounded-lg font-bold text-xs hover:bg-base-300 transition-colors">Pause</button>
-                      )}
-                      <button onClick={handleCancelRecurringSchedule} className="flex-1 py-2 bg-red-100 text-error rounded-lg font-bold text-xs hover:bg-red-200 transition-colors">Cancel</button>
-                    </div>
-                  </div>
-                )}
+            {/* Reminder banner for overdue check-in */}
+            {missedCheckIn && (
+              <div className="mb-4">
+                <CheckInReminder
+                  scheduledCheckIn={missedCheckIn}
+                  onDismiss={() => { setMissedCheckIn(null); fetchData(); }}
+                />
               </div>
             )}
+
+            {/* Live status of all scheduled check-ins */}
+            <div className="mb-4">
+              <CheckInStatus
+                tripId={trips.find((t) => t.status === 'active')?.id || trips[0]?.id}
+                onMissed={(ci) => setMissedCheckIn(ci)}
+              />
+            </div>
+
+            {/* Scheduler form — Guardian+ only */}
+            <PlanGate
+              minPlan="guardian"
+              title="Scheduled Check-Ins"
+              description="Upgrade to Guardian to set up automatic scheduled check-ins."
+            >
+              <details className="mt-3">
+                <summary className="cursor-pointer text-xs font-bold text-brand-vibrant hover:underline list-none flex items-center gap-1">
+                  <Plus size={12} /> Add new check-in schedule
+                </summary>
+                <div className="mt-3 border border-base-300/60 rounded-xl p-4">
+                  <CheckInScheduler
+                    trips={trips}
+                    onScheduled={() => fetchData()}
+                  />
+                </div>
+              </details>
+            </PlanGate>
           </div>
         </motion.div>
       )}
@@ -1271,30 +1253,7 @@ export default function Safety() {
               </div>
             )}
 
-            {guardianRelationships.length > 0 && (
-              <div className="space-y-3">
-                {guardianRelationships.map((rel) => (
-                  <div key={rel.id} className="flex items-center justify-between p-3 border border-base-300/50 rounded-xl bg-base-100">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-brand-vibrant/10 rounded-xl flex items-center justify-center">
-                        <Users size={16} className="text-brand-vibrant" />
-                      </div>
-                      <div>
-                        <p className="font-black text-sm text-base-content">{rel.guardian_name || rel.guardian_email}</p>
-                        <p className="text-xs text-base-content/50 capitalize">{rel.status || 'pending'}</p>
-                      </div>
-                    </div>
-                    {rel.source === 'relationship' && (
-                      <LocationSharingToggle
-                        guardianId={rel.id}
-                        enabled={rel.location_sharing_enabled}
-                        onToggled={() => fetchData()}
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+            <GuardianList onInvite={() => setShowGuardianInvite(true)} />
           </div>
 
           {/* Guardian Dashboard (for users who are guardians themselves) */}
@@ -1338,9 +1297,49 @@ export default function Safety() {
       {/* Return Plan Tab */}
       {activeTab === 'returnplan' && (
         <motion.div variants={itemVariants} className="space-y-6">
+          {/* Quick view card — always visible, offline-capable */}
+          {(returnPlan || offlineStorage.getReturnPlan()) && (
+            <ReturnPlanCard
+              plan={returnPlan}
+              onEdit={() => {}}
+              onActivate={(plan) => {
+                // EmergencyReturnActivation handles the confirm flow inline
+              }}
+            />
+          )}
+
+          {/* Emergency Return Activation */}
+          {returnPlan?.id && (
+            <div className="glass-card p-6 rounded-3xl">
+              <PlanGate minPlan="guardian" title="Emergency Activation" description="Requires Guardian plan.">
+                <EmergencyReturnActivation
+                  plan={returnPlan}
+                  onActivated={() => {
+                    api.get('/return-plan').then((res) => {
+                      if (res.data?.success) {
+                        const plans = res.data.data;
+                        const plan = Array.isArray(plans) ? plans[0] || null : plans;
+                        setReturnPlan(plan);
+                        if (plan) offlineStorage.setReturnPlan(plan);
+                      }
+                    }).catch(() => null);
+                  }}
+                />
+              </PlanGate>
+            </div>
+          )}
+
+          {/* Nearest Safe Locations */}
+          <div className="glass-card p-6 rounded-3xl">
+            <NearestSafeLocations />
+          </div>
+
+          {/* Edit / Create plan form */}
           <div className="glass-card p-6 rounded-3xl">
             <div className="mb-6">
-              <h3 className="font-black text-base-content text-lg">Safe Return Plan</h3>
+              <h3 className="font-black text-base-content text-lg">
+                {returnPlan ? 'Edit Return Plan' : 'Create Return Plan'}
+              </h3>
               <p className="text-sm text-base-content/60 mt-1">Document your embassy, hospital, flight, and accommodation details so your guardians can get you home safely.</p>
             </div>
             <PlanGate
@@ -1355,7 +1354,9 @@ export default function Safety() {
                   api.get('/return-plan').then((res) => {
                     if (res.data?.success) {
                       const plans = res.data.data;
-                      setReturnPlan(Array.isArray(plans) ? plans[0] || null : plans);
+                      const plan = Array.isArray(plans) ? plans[0] || null : plans;
+                      setReturnPlan(plan);
+                      if (plan) offlineStorage.setReturnPlan(plan);
                     }
                   }).catch(() => null);
                 }}
@@ -1368,6 +1369,20 @@ export default function Safety() {
       {/* Safety Map Tab */}
       {activeTab === 'safetymap' && (
         <motion.div variants={itemVariants} className="space-y-6">
+          {/* Emergency Services Card */}
+          {embassyCountryCode.length >= 2 && (
+            <div className="glass-card p-6 rounded-3xl">
+              <EmergencyServicesCard countryCode={embassyCountryCode} />
+            </div>
+          )}
+
+          <div className="glass-card p-6 rounded-3xl">
+            <div className="mb-4">
+              <h3 className="font-black text-base-content text-lg">Nearby Hospitals</h3>
+            </div>
+            <NearbyHospitals />
+          </div>
+
           <div className="glass-card p-6 rounded-3xl">
             <div className="mb-6">
               <h3 className="font-black text-base-content text-lg">Area Safety</h3>
@@ -1390,59 +1405,9 @@ export default function Safety() {
       {activeTab === 'history' && (
         <motion.div variants={itemVariants} className="glass-card p-6 rounded-3xl">
           <h3 className="font-black text-base-content text-lg mb-6">Check-in history</h3>
-          {checkIns.length === 0 ? (
-            <div className="text-center py-12">
-              <History className="w-12 h-12 text-base-content/20 mx-auto mb-3" />
-              <p className="text-base-content/60 font-medium mb-1">No check-in history</p>
-              <p className="text-base-content/40 text-sm mb-4">Send your first safety check-in to start building your record.</p>
-              <button
-                onClick={() => setActiveTab('checkin')}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm bg-brand-vibrant text-white shadow-md shadow-brand-vibrant/25 hover:bg-emerald-600 transition-colors"
-              >
-                Go to Check-In
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {checkIns.map((checkIn) => (
-                <div
-                  key={checkIn.id}
-                  className={`p-4 rounded-xl border ${
-                    checkIn.type === 'emergency'
-                      ? 'bg-error/10 border-error/30'
-                      : checkIn.type === 'scheduled'
-                      ? 'bg-warning/10 border-warning/30'
-                      : 'bg-success/10 border-success/30'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className={`font-bold text-sm ${
-                        checkIn.type === 'emergency' ? 'text-error' : 'text-success'
-                      }`}>
-                        {getCheckInTypeLabel(checkIn.type)}
-                      </span>
-                      {checkIn.address && (
-                        <p className="text-xs text-base-content/60 flex items-center mt-1">
-                          <MapPin size={12} className="mr-1" />
-                          {checkIn.address}
-                        </p>
-                      )}
-                      {checkIn.message && (
-                        <p className="text-xs text-base-content/60 mt-1">{checkIn.message}</p>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-base-content/40">{formatDateTime(checkIn.createdAt)}</p>
-                      {checkIn.sentTo?.length > 0 && (
-                        <p className="text-xs text-base-content/30 mt-0.5">{checkIn.sentTo.length} notified</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <CheckInHistory
+            tripId={trips.find((t) => t.status === 'active')?.id || trips[0]?.id}
+          />
         </motion.div>
       )}
 

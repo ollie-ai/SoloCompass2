@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Building, Phone, Mail, Plane, Hotel, DollarSign, FileText, Check } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Building, Phone, Mail, Plane, Hotel, DollarSign, FileText, Check, Sparkles, Loader } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 
@@ -74,6 +74,54 @@ export default function ReturnPlanSetup({ tripId, existingPlan, onSaved }) {
   });
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [autoPopulating, setAutoPopulating] = useState(false);
+
+  // Auto-populate nearby embassy + hospital when creating a new plan
+  useEffect(() => {
+    if (existingPlan?.id) return; // don't overwrite an existing plan
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      setAutoPopulating(true);
+      try {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        const [safeHavenRes, embassyRes] = await Promise.allSettled([
+          api.get(`/safety/safe-haven?lat=${lat}&lng=${lng}`),
+          api.get('/safety-areas/emergency-services/nearby?lat=' + lat + '&lng=' + lng + '&radius=5')
+        ]);
+
+        const updates = {};
+
+        // Nearest hospital from safe-haven
+        const safeHavens = safeHavenRes.status === 'fulfilled' ? safeHavenRes.value.data?.data || [] : [];
+        const nearestHospital = safeHavens.find(s => s.type === 'hospital');
+        if (nearestHospital && !form.hospitalName) {
+          updates.hospitalName = nearestHospital.name || '';
+          updates.hospitalAddress = nearestHospital.address || '';
+          updates.hospitalPhone = nearestHospital.phone || '';
+        }
+
+        // Nearest police station fills address if we don't have hospital
+        const hospitals = embassyRes.status === 'fulfilled'
+          ? embassyRes.value.data?.data?.hospitals || []
+          : [];
+        if (hospitals.length > 0 && !updates.hospitalName) {
+          const h = hospitals[0];
+          updates.hospitalName = h.name || '';
+          updates.hospitalAddress = h.address || '';
+          updates.hospitalPhone = h.phone || '';
+        }
+
+        if (Object.keys(updates).length > 0) {
+          setForm(prev => ({ ...prev, ...updates }));
+          toast.success('Nearby hospital auto-populated', { icon: '✨' });
+        }
+      } catch {
+        // silently fail — auto-populate is best-effort
+      } finally {
+        setAutoPopulating(false);
+      }
+    }, () => {});
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -97,6 +145,12 @@ export default function ReturnPlanSetup({ tripId, existingPlan, onSaved }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {autoPopulating && (
+        <div className="flex items-center gap-2 p-3 bg-brand-vibrant/10 border border-brand-vibrant/30 rounded-xl text-brand-vibrant text-sm font-bold">
+          <Loader size={14} className="animate-spin" />
+          Auto-populating nearby hospital...
+        </div>
+      )}
       {saved && (
         <div className="flex items-center gap-2 p-3 bg-success/10 border border-success/30 rounded-xl text-success text-sm font-bold">
           <Check size={16} />

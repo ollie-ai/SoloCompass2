@@ -16,6 +16,7 @@ import SoloIDCard from '../components/SoloIDCard';
 import MatchingProfile from '../components/MatchingProfile';
 import MatchingProfileEdit from '../components/MatchingProfileEdit';
 import VerificationModal from '../components/VerificationModal';
+import BlockReportModal from '../components/BlockReportModal';
 
 const itemVariants = {
   hidden: { opacity: 0, y: 12 },
@@ -43,6 +44,9 @@ const Buddies = () => {
   const [activeTab, setActiveTab] = useState('discover');
   const [showProfileEdit, setShowProfileEdit] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [showSafetyModal, setShowSafetyModal] = useState(false);
+  const [selectedConnection, setSelectedConnection] = useState(null);
+  const [safetyActionLoading, setSafetyActionLoading] = useState(false);
   const searchRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -78,7 +82,22 @@ const Buddies = () => {
       setPotentialMatches(potentialRes.data.data || []);
       setIncomingRequests(requestsRes.data.data?.incoming || []);
       setOutgoingRequests(requestsRes.data.data?.outgoing || []);
-      setConnections(connectionsRes.data.data || []);
+      const normalizedConnections = (connectionsRes.data.data || []).map((conn) => ({
+        ...conn,
+        user: {
+          id: conn.buddy_id,
+          name: conn.buddy_name,
+          location: conn.location || null,
+        },
+        trip: conn.trip_destination ? {
+          destination: conn.trip_destination,
+          name: conn.trip_name,
+          startDate: conn.start_date,
+          endDate: conn.end_date,
+        } : null,
+        connectedAt: conn.created_at,
+      }));
+      setConnections(normalizedConnections);
       setMyProfile(profileRes.data.data);
       setSoloId(soloIdRes.data.data);
     } catch (error) {
@@ -142,6 +161,33 @@ const Buddies = () => {
       setPotentialMatches(prev => (prev || []).filter(m => m.userId !== userId));
     } catch (error) {
       toast.error('Failed to block user');
+    }
+  };
+
+  const handleSafetySubmit = async ({ action, reason, details, category }) => {
+    if (!selectedConnection?.id) return;
+    setSafetyActionLoading(true);
+    try {
+      if (action === 'block') {
+        await api.post(`/matching/connections/${selectedConnection.id}/block`, {
+          reason: reason || 'Blocked by user',
+        });
+        toast.success('User blocked');
+      } else {
+        await api.post(`/matching/connections/${selectedConnection.id}/report`, {
+          reason,
+          details,
+          category,
+        });
+        toast.success('Report submitted');
+      }
+      setShowSafetyModal(false);
+      setSelectedConnection(null);
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Safety action failed');
+    } finally {
+      setSafetyActionLoading(false);
     }
   };
 
@@ -806,6 +852,17 @@ const Buddies = () => {
                             </div>
                             <p className="text-xs text-base-content/40 font-medium mt-0.5">{conn.user?.location || 'Location unknown'}</p>
                           </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedConnection(conn);
+                              setShowSafetyModal(true);
+                            }}
+                            className="p-2 rounded-lg hover:bg-base-200 text-base-content/40 hover:text-error transition-colors"
+                            title="Block or report"
+                          >
+                            <Shield size={14} />
+                          </button>
                         </div>
 
                         {sharedInfo.length > 0 && (
@@ -928,6 +985,16 @@ const Buddies = () => {
       <VerificationModal 
         isOpen={showVerificationModal} 
         onClose={() => setShowVerificationModal(false)} 
+      />
+      <BlockReportModal
+        isOpen={showSafetyModal}
+        onClose={() => {
+          setShowSafetyModal(false);
+          setSelectedConnection(null);
+        }}
+        targetName={selectedConnection?.user?.name}
+        loading={safetyActionLoading}
+        onSubmit={handleSafetySubmit}
       />
       </div>
     </DashboardShell>

@@ -950,6 +950,27 @@ async function initializeDatabase() {
         UNIQUE(blocker_id, blocked_id)
       );
 
+      -- Buddy reports
+      CREATE TABLE IF NOT EXISTS buddy_reports (
+        id SERIAL PRIMARY KEY,
+        reporter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        reported_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        connection_id INTEGER REFERENCES buddy_requests(id) ON DELETE SET NULL,
+        category TEXT DEFAULT 'other' CHECK(category IN (
+          'harassment',
+          'spam',
+          'scam',
+          'inappropriate_content',
+          'safety_concern',
+          'other'
+        )),
+        reason TEXT NOT NULL,
+        details TEXT,
+        status TEXT DEFAULT 'open' CHECK(status IN ('open', 'in_review', 'resolved', 'dismissed')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
       -- Budgets (trip-level totals)
       CREATE TABLE IF NOT EXISTS budgets (
         id SERIAL PRIMARY KEY,
@@ -1187,6 +1208,9 @@ async function initializeDatabase() {
       
       -- Buddy block indexes
       CREATE INDEX IF NOT EXISTS idx_buddy_blocks_blocker ON buddy_blocks(blocker_id);
+      CREATE INDEX IF NOT EXISTS idx_buddy_reports_reporter ON buddy_reports(reporter_id);
+      CREATE INDEX IF NOT EXISTS idx_buddy_reports_reported ON buddy_reports(reported_user_id);
+      CREATE INDEX IF NOT EXISTS idx_buddy_reports_status ON buddy_reports(status);
 
       -- Buddy messages indexes
       CREATE INDEX IF NOT EXISTS idx_messages_conversation ON buddy_messages(conversation_id, created_at DESC);

@@ -2,6 +2,9 @@ import express from 'express';
 import { authenticate } from '../middleware/auth.js';
 import db from '../db.js';
 import logger from '../services/logger.js';
+import { broadcastToUser } from '../services/websocket.js';
+import { createNotification } from '../services/notificationService.js';
+import * as pushService from '../services/pushService.js';
 
 const router = express.Router();
 router.use(authenticate);
@@ -100,6 +103,7 @@ router.get('/conversations/:conversationId', async (req, res) => {
         bm.content,
         bm.message_type as "messageType",
         bm.is_read as "isRead",
+        bm.is_read as "read",
         bm.created_at as "createdAt"
       FROM buddy_messages bm
       JOIN users u ON bm.sender_id = u.id
@@ -226,11 +230,45 @@ router.post('/conversations/:conversationId', async (req, res) => {
         bm.content,
         bm.message_type as "messageType",
         bm.is_read as "isRead",
+        bm.is_read as "read",
         bm.created_at as "createdAt"
       FROM buddy_messages bm
       JOIN users u ON bm.sender_id = u.id
       WHERE bm.id = ?
     `).get(result.lastInsertRowid);
+
+    const recipientId = conversation.participant_a === userId
+      ? conversation.participant_b
+      : conversation.participant_a;
+
+    broadcastToUser(recipientId, {
+      type: 'buddy_message_new',
+      conversationId: parseInt(conversationId, 10),
+      message
+    });
+
+    await createNotification(
+      recipientId,
+      'buddy_message',
+      'New buddy message',
+      `${message.senderName || 'A traveler'} sent you a message`,
+      {
+        conversationId: parseInt(conversationId, 10),
+        senderId: userId,
+        messageId: message.id
+      }
+    );
+
+    await pushService.sendPushNotification(recipientId, {
+      title: 'New buddy message',
+      body: `${message.senderName || 'A traveler'}: ${message.content}`,
+      data: {
+        type: 'buddy_message',
+        conversationId: String(conversationId),
+        messageId: String(message.id)
+      },
+      tag: `buddy-message-${conversationId}`
+    });
 
     res.json({ success: true, data: message });
   } catch (error) {
@@ -242,7 +280,7 @@ router.post('/conversations/:conversationId', async (req, res) => {
   }
 });
 
-router.put('/conversations/:conversationId/read', async (req, res) => {
+const markConversationRead = async (req, res) => {
   try {
     const { conversationId } = req.params;
     const userId = req.userId;
@@ -282,7 +320,10 @@ router.put('/conversations/:conversationId/read', async (req, res) => {
       error: { code: 'INTERNAL_ERROR', message: 'Failed to mark as read' }
     });
   }
-});
+};
+
+router.put('/conversations/:conversationId/read', markConversationRead);
+router.post('/conversations/:conversationId/read', markConversationRead);
 
 router.delete('/conversations/:conversationId', async (req, res) => {
   try {

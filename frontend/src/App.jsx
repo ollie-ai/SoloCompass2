@@ -190,6 +190,22 @@ function App() {
               }
             />
             <Route
+              path="/buddy/messages"
+              element={
+                <ProtectedRoute>
+                  <Messages />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/buddy/messages/:id"
+              element={
+                <ProtectedRoute>
+                  <Messages />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/checkout"
               element={
                 <ProtectedRoute>
@@ -336,6 +352,16 @@ function App() {
               </ProtectedRoute>
             } />
             <Route path="/buddies" element={
+              <ProtectedRoute>
+                <Buddies />
+              </ProtectedRoute>
+            } />
+            <Route path="/buddy" element={
+              <ProtectedRoute>
+                <Buddies />
+              </ProtectedRoute>
+            } />
+            <Route path="/buddy/discover" element={
               <ProtectedRoute>
                 <Buddies />
               </ProtectedRoute>

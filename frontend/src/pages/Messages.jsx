@@ -8,6 +8,7 @@ import DashboardShell from '../components/dashboard/DashboardShell';
 import PageHeader from '../components/PageHeader';
 import ConversationList from '../components/messages/ConversationList';
 import MessageBubble from '../components/messages/MessageBubble';
+import { useWebSocket } from '../hooks/useWebSocket';
 
 const Messages = () => {
   const { user } = useAuthStore();
@@ -23,6 +24,7 @@ const Messages = () => {
   const [callModalOpen, setCallModalOpen] = useState(false);
   const [callingUser, setCallingUser] = useState(null);
   const [callType, setCallType] = useState('audio');
+  const { on } = useWebSocket();
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -40,6 +42,43 @@ const Messages = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    const unsubscribe = on('buddy_message_new', (event) => {
+      const incomingMessage = event?.message;
+      const conversationId = Number(event?.conversationId);
+      if (!incomingMessage || !conversationId) return;
+
+      if (selectedConversation?.id === conversationId) {
+        setMessages((prev) => {
+          if (prev.some((msg) => msg.id === incomingMessage.id)) return prev;
+          return [...prev, incomingMessage];
+        });
+        if (incomingMessage.senderId !== user?.id) {
+          markAsRead(conversationId);
+        }
+      }
+
+      setConversations((prev) => {
+        const next = [...prev];
+        const idx = next.findIndex((conv) => Number(conv.id) === conversationId);
+        if (idx === -1) return prev;
+
+        const target = next[idx];
+        const unreadDelta =
+          incomingMessage.senderId !== user?.id && selectedConversation?.id !== conversationId ? 1 : 0;
+        next[idx] = {
+          ...target,
+          lastMessage: incomingMessage.content,
+          lastMessageAt: incomingMessage.createdAt,
+          unreadCount: (target.unreadCount || 0) + unreadDelta,
+        };
+        return next.sort((a, b) => new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0));
+      });
+    });
+
+    return () => unsubscribe?.();
+  }, [on, selectedConversation?.id, user?.id]);
 
   const fetchConversations = async () => {
     setLoading(true);
@@ -69,7 +108,7 @@ const Messages = () => {
 
   const markAsRead = async (conversationId) => {
     try {
-      await api.post(`/messages/conversations/${conversationId}/read`);
+      await api.put(`/messages/conversations/${conversationId}/read`);
       setConversations(prev => prev.map(conv => 
         conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv
       ));

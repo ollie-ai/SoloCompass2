@@ -51,7 +51,7 @@ const enforceAdminSessionSecurity = async (req, res) => {
     .filter(Boolean);
 
   if (allowlist.length > 0) {
-    const requestIp = normalizeIp(req.ip || req.headers['x-forwarded-for']?.split(',')?.[0] || '');
+    const requestIp = normalizeIp(req.headers['x-forwarded-for']?.split(',')?.[0] || req.ip || '');
     if (!allowlist.includes(requestIp)) {
       return res.status(403).json({
         success: false,
@@ -158,21 +158,21 @@ export const requireAdmin = async (req, res, next) => {
         error: { code: 'FORBIDDEN', message: 'Admin access required' }
       });
     }
-    return Promise.resolve()
-      .then(async () => {
+    (async () => {
+      try {
         const securityRejection = await enforceAdminSessionSecurity(req, res);
-        if (securityRejection) return null;
+        if (securityRejection) return;
         // Grant basic admin access - specific permissions checked separately
         req.adminLevel = req.user?.admin_level || 'support';
-        return next();
-      })
-      .catch((error) => {
+        next();
+      } catch (error) {
         logger.error(`[Auth] requireAdmin error: ${error.message}`);
         return res.status(500).json({
           success: false,
           error: { code: 'INTERNAL_ERROR', message: 'Failed admin authorization' }
         });
-      });
+      }
+    })();
   });
 };
 

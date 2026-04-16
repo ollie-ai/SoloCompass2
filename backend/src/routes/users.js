@@ -1,6 +1,7 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import rateLimit from 'express-rate-limit';
 import db from '../db.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { requireFeature, FEATURES } from '../middleware/paywall.js';
@@ -9,6 +10,13 @@ import { stripe } from '../services/stripe.js';
 import logger from '../services/logger.js';
 
 const router = express.Router();
+
+const privacyActionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 40,
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
 // Whitelist of allowed profile fields
 const ALLOWED_PROFILE_FIELDS = [
@@ -105,7 +113,7 @@ router.get('/me', requireAuth, async (req, res) => {
   }
 });
 
-router.get('/me/consent', requireAuth, async (req, res) => {
+router.get('/me/consent', privacyActionLimiter, requireAuth, async (req, res) => {
   try {
     const rows = await db.all(`
       SELECT DISTINCT ON (consent_type)
@@ -136,7 +144,7 @@ router.get('/me/consent', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/me/consent', requireAuth, async (req, res) => {
+router.post('/me/consent', privacyActionLimiter, requireAuth, async (req, res) => {
   try {
     const { consentType, status, source = 'web_app', preferences = null } = req.body || {};
     const allowedTypes = ['data_processing', 'cookies'];
@@ -327,7 +335,7 @@ router.put('/:id', requireAuth, sanitizeAll(['name', 'bio', 'travel_style', 'pho
   }
 });
 
-router.get('/:id/export', requireAuth, requireFeature(FEATURES.EXPORT_DATA), async (req, res) => {
+router.get('/:id/export', privacyActionLimiter, requireAuth, requireFeature(FEATURES.EXPORT_DATA), async (req, res) => {
   try {
     const { id } = req.params;
     const isAdmin = req.userRole === 'admin';
@@ -424,7 +432,7 @@ router.get('/:id/export', requireAuth, requireFeature(FEATURES.EXPORT_DATA), asy
   }
 });
 
-router.delete('/:id', requireAuth, requireFeature(FEATURES.DELETE_DATA), async (req, res) => {
+router.delete('/:id', privacyActionLimiter, requireAuth, requireFeature(FEATURES.DELETE_DATA), async (req, res) => {
   try {
     const { id } = req.params;
     const { permanent } = req.query; // ?permanent=true for hard delete

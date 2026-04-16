@@ -1,10 +1,17 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
+import rateLimit from 'express-rate-limit';
 import db from '../db.js';
 import logger from '../services/logger.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
+const supportTicketLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 25,
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
 const emergencyKeywords = ['sos', 'emergency', 'urgent', 'unsafe', 'danger'];
 
@@ -162,7 +169,7 @@ router.post('/contact', [
  * POST /api/help/tickets
  * Create support ticket (emergency tickets are auto-prioritized)
  */
-router.post('/tickets', requireAuth, [
+router.post('/tickets', supportTicketLimiter, requireAuth, [
   body('subject').trim().isLength({ min: 3 }).withMessage('Subject is required'),
   body('message').trim().isLength({ min: 10 }).withMessage('Message must be at least 10 characters'),
   body('category').optional().isString()
@@ -218,7 +225,7 @@ router.post('/tickets', requireAuth, [
  * GET /api/help/tickets
  * List current user's tickets
  */
-router.get('/tickets', requireAuth, async (req, res) => {
+router.get('/tickets', supportTicketLimiter, requireAuth, async (req, res) => {
   try {
     const tickets = await db.all(
       `SELECT id, subject, category, status, priority, is_emergency, sla_due_at, created_at, updated_at, resolved_at

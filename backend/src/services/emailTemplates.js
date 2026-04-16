@@ -19,12 +19,23 @@ const getHeader = (isEmergency = false) => `
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${BRAND.name}</title>
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <!-- @media only screen and (max-width: 600px) - tables use max-width for fluid mobile layout -->
+  <style>
+    @media (prefers-color-scheme: dark) {
+      body, .email-body { background-color: #1e293b !important; }
+      .email-content { background-color: #334155 !important; }
+      .email-text { color: #e2e8f0 !important; }
+      .email-subtext { color: #94a3b8 !important; }
+    }
+  </style>
 </head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; background-color: #f8fafc;">
+<body class="email-body" style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; background-color: #f8fafc;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 20px 0;">
     <tr>
       <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+        <table class="email-content" width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
           <tr>
             <td style="background: linear-gradient(135deg, ${BRAND.primaryColor} 0%, #8b5cf6 100%); padding: 24px; text-align: center;">
               <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">

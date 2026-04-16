@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Wallet, Plus, Loader2, Trash2, Edit2, X, TrendingUp, TrendingDown } from 'lucide-react';
-import api from '../lib/api';
+import { Wallet, Plus, Loader2, Trash2, Edit2, X, TrendingUp, TrendingDown, Download, Receipt } from 'lucide-react';
+import api, { getBudgetSummary } from '../lib/api';
 import toast from 'react-hot-toast';
 import { getErrorMessage } from '../lib/utils';
 
@@ -30,7 +30,8 @@ const BudgetTracker = ({ tripId, tripName, onClose }) => {
     description: '',
     amount: '',
     currency: 'USD',
-    type: 'expense'
+    type: 'expense',
+    receiptUrl: ''
   });
   const [budgetSettings, setBudgetSettings] = useState({
     totalBudget: '',
@@ -130,7 +131,8 @@ const BudgetTracker = ({ tripId, tripName, onClose }) => {
         description: newItem.description,
         amount: parseFloat(newItem.amount),
         currency: newItem.currency,
-        type: newItem.type
+        type: newItem.type,
+        receiptUrl: newItem.receiptUrl || undefined
       });
       setBudget(prev => ({
         ...prev,
@@ -150,7 +152,8 @@ const BudgetTracker = ({ tripId, tripName, onClose }) => {
         description: '',
         amount: '',
         currency: budget?.currency || 'USD',
-        type: 'expense'
+        type: 'expense',
+        receiptUrl: ''
       });
       setShowAddExpense(false);
       toast.success(newItem.type === 'expense' ? 'Expense added!' : 'Income added!');
@@ -206,11 +209,16 @@ const BudgetTracker = ({ tripId, tripName, onClose }) => {
     return (
       <div className="bg-base-100 rounded-2xl p-8 max-w-lg mx-auto shadow-xl border border-base-200">
         <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-gradient-to-br from-brand-vibrant/20 to-brand-accent/20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
-            <Wallet className="text-brand-vibrant" size={36} />
+          <div className="w-20 h-20 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <Wallet className="text-emerald-500" size={36} />
           </div>
           <h2 className="text-2xl font-black text-base-content mb-2">Budget Tracker</h2>
-          <p className="text-base-content/60 font-medium">Set a budget to track your spending for {tripName}</p>
+          <p className="text-base-content/60 font-medium mb-4">Set a budget to track your spending for {tripName}</p>
+          <div className="flex flex-wrap justify-center gap-3 text-xs text-base-content/40 font-bold uppercase">
+            <span className="inline-flex items-center gap-1 px-2 py-1 bg-base-200 rounded-lg">💰 Track expenses</span>
+            <span className="inline-flex items-center gap-1 px-2 py-1 bg-base-200 rounded-lg">📊 Category breakdown</span>
+            <span className="inline-flex items-center gap-1 px-2 py-1 bg-base-200 rounded-lg">📥 CSV export</span>
+          </div>
         </div>
 
         <form onSubmit={createBudget} className="space-y-4">
@@ -259,6 +267,27 @@ const BudgetTracker = ({ tripId, tripName, onClose }) => {
           <p className="text-sm text-base-content/60">{tripName}</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              const data = budget;
+              const csv = [
+                ['Category', 'Description', 'Amount', 'Currency', 'Type'],
+                ...(data?.items || []).map(i => [i.category, i.description || '', i.amount, data.currency, i.type])
+              ].map(r => r.join(',')).join('\n');
+              const blob = new Blob([csv], { type: 'text/csv' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `budget-${tripName || 'trip'}.csv`;
+              a.click();
+              URL.revokeObjectURL(url);
+              toast.success('Budget exported!');
+            }}
+            className="p-2 text-base-content/40 hover:text-base-content hover:bg-base-200 rounded-xl transition-colors"
+            title="Export as CSV"
+          >
+            <Download size={18} />
+          </button>
           <button
             onClick={() => setShowSettings(true)}
             className="p-2 text-base-content/40 hover:text-base-content hover:bg-base-200 rounded-xl transition-colors"
@@ -436,6 +465,17 @@ const BudgetTracker = ({ tripId, tripName, onClose }) => {
             placeholder="Description (optional)"
             className="w-full px-3 py-2.5 border-2 border-base-300 bg-base-100 rounded-lg text-sm font-medium focus:ring-2 focus:ring-brand-vibrant/20 focus:border-brand-vibrant outline-none text-base-content"
           />
+
+          <div className="flex items-center gap-2">
+            <Receipt size={14} className="text-base-content/30 flex-shrink-0" />
+            <input
+              type="url"
+              value={newItem.receiptUrl}
+              onChange={e => setNewItem(prev => ({ ...prev, receiptUrl: e.target.value }))}
+              placeholder="Receipt URL (optional)"
+              className="w-full px-3 py-2.5 border-2 border-base-300 bg-base-100 rounded-lg text-sm font-medium focus:ring-2 focus:ring-brand-vibrant/20 focus:border-brand-vibrant outline-none text-base-content"
+            />
+          </div>
           
           <div className="flex gap-2">
             <button

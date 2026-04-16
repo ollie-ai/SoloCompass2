@@ -3,6 +3,21 @@ import { ShieldCheck, X, Cookie, Settings, Check } from 'lucide-react';
 import Button from './Button';
 import { Link } from 'react-router-dom';
 
+export const getCookiePreferences = () => {
+  try {
+    const stored = localStorage.getItem('cookie-preferences');
+    if (!stored) return { essential: true, analytics: false, marketing: false };
+    return JSON.parse(stored);
+  } catch {
+    return { essential: true, analytics: false, marketing: false };
+  }
+};
+
+export const hasConsentFor = (type) => {
+  const prefs = getCookiePreferences();
+  return prefs[type] === true;
+};
+
 const CookieConsent = () => {
   const [show, setShow] = useState(false);
   const [showPreferences, setShowPreferences] = useState(false);
@@ -35,6 +50,7 @@ const CookieConsent = () => {
     setPreferences(fullConsent);
     setShow(false);
     setShowPreferences(false);
+    window.dispatchEvent(new CustomEvent('cookie-consent-updated', { detail: fullConsent }));
   };
 
   const acceptEssential = () => {
@@ -48,6 +64,7 @@ const CookieConsent = () => {
     setPreferences(essentialOnly);
     setShow(false);
     setShowPreferences(false);
+    window.dispatchEvent(new CustomEvent('cookie-consent-updated', { detail: essentialOnly }));
   };
 
   const savePreferences = () => {
@@ -55,6 +72,7 @@ const CookieConsent = () => {
     localStorage.setItem('cookie-preferences', JSON.stringify(preferences));
     setShow(false);
     setShowPreferences(false);
+    window.dispatchEvent(new CustomEvent('cookie-consent-updated', { detail: preferences }));
   };
 
   const togglePreference = (key) => {

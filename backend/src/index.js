@@ -97,9 +97,10 @@ async function bootstrap() {
     const { default: webhookRoutes } = await import('./routes/webhooks.js');
     const { default: notificationRoutes } = await import('./routes/notifications.js');
     const { default: verificationRoutes } = await import('./routes/verification.js');
-const { default: countriesRoutes } = await import('./routes/countries.js');
-    const { default: citiesRoutes } = await import('./routes/cities.js');
-    const { default: errorRoutes } = await import('./routes/errors.js');
+     const { default: countriesRoutes } = await import('./routes/countries.js');
+     const { default: citiesRoutes } = await import('./routes/cities.js');
+     const { default: accountRoutes } = await import('./routes/account.js');
+     const { default: errorRoutes } = await import('./routes/errors.js');
     const { default: checklistRoutes } = await import('./routes/checklist.js');
     const { default: guardianRoutes } = await import('./routes/guardian.js');
     const { default: callsRoutes } = await import('./routes/calls.js');
@@ -200,8 +201,10 @@ const { default: countriesRoutes } = await import('./routes/countries.js');
     app.use('/api/calls', callsRoutes);
     app.use('/api/esim', esimRoutes);
     app.use('/api/translate', translateRoutes);
-    app.use('/api/countries', countriesRoutes);
-    app.use('/api/cities', citiesRoutes);
+     app.use('/api/countries', countriesRoutes);
+     app.use('/api/cities', citiesRoutes);
+     app.use('/api/account', accountRoutes);
+     app.use('/api/v1/account', accountRoutes);
 
     // Seed test events for admin (development only)
     if (process.env.NODE_ENV !== 'production') {

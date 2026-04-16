@@ -88,6 +88,13 @@ export const NOTIFICATION_TYPES = {
     controlLevel: CONTROL_LEVEL.LOCKED,
     forEmergencyContact: true,
   },
+  sos_acknowledged: {
+    name: 'SOS Acknowledged',
+    description: 'Guardian acknowledged your SOS alert',
+    priority: PRIORITY.P0_EMERGENCY,
+    channels: [CHANNEL.IN_APP, CHANNEL.PUSH],
+    controlLevel: CONTROL_LEVEL.LOCKED,
+  },
   safe_return_overdue: {
     name: 'Safe Return Overdue',
     description: 'Safe return timer has expired',

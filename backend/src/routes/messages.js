@@ -2,6 +2,9 @@ import express from 'express';
 import { authenticate } from '../middleware/auth.js';
 import db from '../db.js';
 import logger from '../services/logger.js';
+import { createNotification } from '../services/notificationService.js';
+import * as pushService from '../services/pushService.js';
+import { broadcastToUser } from '../services/websocket.js';
 
 const router = express.Router();
 router.use(authenticate);
@@ -259,6 +262,32 @@ router.post('/conversations/:conversationId', async (req, res) => {
     `).get(result.lastInsertRowid);
 
     res.json({ success: true, data: message });
+
+    // Push notification to the other participant
+    try {
+      const sender = await db.prepare('SELECT name FROM users WHERE id = ?').get(userId);
+      const senderName = sender?.name || 'Someone';
+
+      await createNotification(
+        otherUserId,
+        'new_message',
+        `New message from ${senderName}`,
+        content.trim().slice(0, 120),
+        { conversationId, senderId: userId, senderName }
+      );
+      await pushService.sendPushNotification(otherUserId, {
+        title: `💬 ${senderName}`,
+        body: content.trim().slice(0, 120),
+        data: { conversationId, type: 'new_message' }
+      });
+      broadcastToUser(otherUserId, {
+        type: 'message:received',
+        conversationId,
+        message
+      });
+    } catch (notifyErr) {
+      logger.warn(`[Messages] Push notification failed: ${notifyErr.message}`);
+    }
   } catch (error) {
     logger.error(`[Messages] Failed to send message: ${error.message}`);
     res.status(500).json({

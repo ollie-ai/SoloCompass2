@@ -1,13 +1,11 @@
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import api, { 
   getTripAccommodation, 
   createTripAccommodation, 
-  updateTripAccommodation, 
   deleteTripAccommodation,
   getTripBookings, 
   createTripBooking, 
-  updateTripBooking, 
   deleteTripBooking,
   getTripDocuments, 
   createTripDocument, 
@@ -23,35 +21,21 @@ import toast from 'react-hot-toast';
 import { getErrorMessage } from '../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../components/Button';
-import Loading from '../components/Loading';
-import Skeleton from '../components/Skeleton';
 import { useAuthStore } from '../stores/authStore';
 import { trackEvent } from '../lib/telemetry';
 import { 
-  ArrowLeft, 
   MapPin, 
-  Calendar, 
-  PoundSterling, 
-  Clock, 
   Trash2, 
   Sparkles, 
-  Info, 
-  ChevronRight,
   Navigation,
   Utensils,
   Camera,
   Moon,
   Zap,
   Coffee,
-  CheckCircle2,
-  Printer,
   Download,
-  ExternalLink,
   ShieldCheck,
-  Package,
-  Wallet,
   Plus,
-  Edit2,
   Edit3,
   Loader2,
   X,
@@ -67,26 +51,17 @@ import {
   Home,
   Bed,
   File,
-  CreditCard,
   Armchair,
-  Users
+  Users,
+  ArrowLeft,
+  CheckCircle2
 } from 'lucide-react';
 import PackingList from '../components/PackingList';
 import BudgetTracker from '../components/BudgetTracker';
-import FlightStatusWidget from '../components/FlightStatus';
-import FeatureGate from '../components/FeatureGate';
-import WeatherWidget from '../components/WeatherWidget';
-import CurrencyConverter from '../components/CurrencyConverter';
-import PlacesSearch from '../components/PlacesSearch';
-import TransitDirections from '../components/TransitDirections';
-import AffiliateLinks from '../components/AffiliateLinks';
 import SafetyCheckIn from '../components/SafetyCheckIn';
-import SoloSafetyHub from '../components/SoloSafetyHub';
-import OfflineMapDownloader from '../components/OfflineMapDownloader';
-import { FEATURES } from '../config/features';
-// import TripItinerary from '../components/trip/TripItinerary';
-// import TripSidebar from '../components/trip/TripSidebar';
-// import { AccommodationForm, BookingForm, DocumentForm } from '../components/trip/TripForms';
+import TripHeader from '../components/trip/TripHeader';
+import TripSidebar from '../components/trip/TripSidebar';
+import TripMainContent from '../components/trip/TripMainContent';
 
 function TripDetail() {
   const { id } = useParams();
@@ -713,28 +688,6 @@ function TripDetail() {
     }
   };
 
-  const getStatusStyle = (status) => {
-    switch (status) {
-      case 'completed': return 'bg-success/20 text-success border-success/30';
-      case 'confirmed': return 'bg-sky-100 text-info border-info/30';
-      case 'cancelled': return 'bg-red-100 text-error border-error/30';
-      default: return 'bg-warning/20 text-warning border-warning/30';
-    }
-  };
-
-  const getActivityIcon = (type) => {
-    switch (type) {
-      case 'Sightseeing': return <Camera size={18} />;
-      case 'Food & Dining': return <Utensils size={18} />;
-      case 'Transport': return <Navigation size={18} />;
-      case 'Adventure': return <Zap size={18} />;
-      case 'Cultural': return <Info size={18} />;
-      case 'Relaxation': return <Coffee size={18} />;
-      case 'Nightlife': return <Moon size={18} />;
-      default: return <MapPin size={18} />;
-    }
-  };
-
   const totalActivities = trip?.itinerary?.reduce((sum, day) => sum + (day.activities?.length || 0), 0) || 0;
   const totalCost = trip?.itinerary?.reduce((sum, day) => 
     sum + (day.activities?.reduce((daySum, act) => daySum + Number(act.cost || 0), 0) || 0), 0
@@ -785,78 +738,15 @@ function TripDetail() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-12 animate-fade-in pb-32">
-      {/* Breadcrumbs & Actions */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
-        <div className="space-y-4">
-          <Link to="/trips" className="group flex items-center gap-2 text-base-content/40 hover:text-base-content font-bold transition-colors">
-            <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" /> Back to Trips
-          </Link>
-          
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-4">
-              <h1 className="text-4xl font-black text-base-content tracking-tight">{trip?.name}</h1>
-              <button 
-                onClick={() => setShowEditTrip(true)}
-                className="p-2 text-base-content/20 hover:text-brand-vibrant hover:bg-brand-vibrant/5 rounded-xl transition-all"
-                title="Edit Trip Details"
-              >
-                <Edit3 size={20} />
-              </button>
-            </div>
-            
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2 px-3 py-1 bg-base-100 border border-base-content/10 rounded-full shadow-sm">
-                <MapPin size={14} className="text-brand-vibrant" />
-                <span className="text-sm font-bold text-base-content/60">{trip?.destination}</span>
-              </div>
-              
-              <div className="flex items-center gap-2 px-3 py-1 bg-base-100 border border-base-content/10 rounded-full shadow-sm">
-                <Calendar size={14} className="text-indigo-500" />
-                <span className="text-sm font-bold text-base-content/60">
-                  {trip?.start_date ? new Date(trip.start_date).toLocaleDateString() : 'TBD'} - {trip?.end_date ? new Date(trip.end_date).toLocaleDateString() : 'TBD'}
-                </span>
-              </div>
-
-              <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-sm ${getStatusStyle(trip?.status)}`}>
-                {trip?.status}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <Button 
-            onClick={() => setShowRegenerate(true)}
-            variant="outline" 
-            className="rounded-xl font-bold border-brand-vibrant/30 text-brand-vibrant hover:bg-brand-vibrant/5 shadow-sm"
-          >
-            <Zap size={18} className="mr-2" /> Regenerate
-          </Button>
-          {trip?.itinerary?.length > 0 && (
-            <Button 
-              onClick={() => setShowVersions(true)}
-              variant="outline" 
-              className="rounded-xl font-bold border-base-content/10 shadow-sm text-base-content/60"
-            >
-              <Loader2 size={18} className="mr-2" /> Versions
-            </Button>
-          )}
-          <Button 
-            onClick={handleExportPDF}
-            disabled={exporting}
-            variant="outline" 
-            className="rounded-xl font-bold border-base-content/10 shadow-sm text-base-content/60"
-          >
-            {exporting ? <Loader2 size={18} className="animate-spin mr-2" /> : <Download size={18} className="mr-2" />} Export PDF
-          </Button>
-          <Button 
-            onClick={handleSafetyCheckIn}
-            className="rounded-xl font-black bg-brand-vibrant hover:bg-brand-vibrant/90 shadow-xl shadow-brand-vibrant/20"
-          >
-            <ShieldCheck size={18} className="mr-2" /> Safety Check-in
-          </Button>
-        </div>
-      </div>
+      <TripHeader
+        trip={trip}
+        exporting={exporting}
+        onExportPDF={handleExportPDF}
+        onSafetyCheckIn={handleSafetyCheckIn}
+        onShowRegenerate={() => setShowRegenerate(true)}
+        onShowVersions={() => setShowVersions(true)}
+        onShowEditTrip={() => setShowEditTrip(true)}
+      />
 
       <style>{`
         @page { size: A4 portrait; margin: 20mm; }
@@ -872,236 +762,47 @@ function TripDetail() {
       `}</style>
 
       <div className="grid lg:grid-cols-3 gap-10">
-        {/* Sidebar Info */}
-        <div className="space-y-8 no-print">
-          <SoloSafetyHub 
-            trip={trip} 
-            contacts={contacts} 
-            onOpenContacts={() => setShowDocuments(true)} // Assuming contacts are managed in documents or separate modal
-            onOpenTimer={() => setShowCheckIn(true)}
+        <div className="no-print">
+          <TripSidebar
+            trip={trip}
+            loading={loading}
+            generating={generating}
+            totalCost={totalCost}
+            totalActivities={totalActivities}
+            accommodations={accommodations}
+            bookings={bookings}
+            documents={documents}
+            savedPlaces={savedPlaces}
+            contacts={contacts}
+            tripId={id}
+            onGenerateItinerary={generateItinerary}
+            onAddFlightToTrip={handleAddFlightToTrip}
+            setShowPackingList={setShowPackingList}
+            setShowBudget={setShowBudget}
+            setShowAccommodation={setShowAccommodation}
+            setShowBookings={setShowBookings}
+            setShowDocuments={setShowDocuments}
+            setShowPlaces={setShowPlaces}
+            setShowCheckIn={setShowCheckIn}
           />
-          {trip?.destination && <WeatherWidget city={trip.destination} />}
-          <div className="glass-card p-8 rounded-xl shadow-xl">
-             <h3 className="text-xl font-black text-base-content mb-6 flex items-center gap-2">
-               <Calendar className="text-brand-vibrant" /> Trip Details
-             </h3>
-             {loading || !trip ? (
-                <div className="space-y-4">
-                  <Skeleton className="h-10 w-full rounded-xl" />
-                  <Skeleton className="h-10 w-full rounded-xl" />
-                  <Skeleton className="h-10 w-full rounded-xl" />
-                </div>
-             ) : (
-               <div className="space-y-6">
-                  <div>
-                    <p className="text-[10px] font-black text-base-content/40 uppercase tracking-widest mb-1">Duration</p>
-                    <p className="font-bold text-base-content/70">
-                      {trip.start_date ? new Date(trip.start_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric'}) : 'TBD'} 
-                      {' — '} 
-                      {trip.end_date ? new Date(trip.end_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD'}
-                    </p>
-                  </div>
-                  <div>
-                     <p className="text-[10px] font-black text-base-content/40 uppercase tracking-widest mb-1">Budget Allocation</p>
-                     <div className="flex items-end gap-2">
-                        <p className="text-2xl font-black text-base-content">£{totalCost.toLocaleString()}</p>
-                        <p className="text-sm font-bold text-base-content/40 mb-1">/ £{trip.budget?.toLocaleString() || '0'}</p>
-                     </div>
-                     <div className="w-full bg-base-200 rounded-full h-2 mt-2">
-                        <div className="bg-brand-vibrant h-2 rounded-full" style={{ width: `${Math.min((totalCost / (trip.budget || 1)) * 100, 100)}%` }}></div>
-                     </div>
-                  </div>
-                  <div>
-                     <p className="text-[10px] font-black text-base-content/40 uppercase tracking-widest mb-1">Activities</p>
-                     <p className="font-bold text-base-content/70">{totalActivities} Activities planned</p>
-                  </div>
-               </div>
-             )}
-             {trip?.notes && (
-              <div className="mt-8 pt-8 border-t border-base-content/10">
-                <p className="text-[10px] font-black text-base-content/40 uppercase tracking-widest mb-2">My Planning Notes</p>
-                <p className="text-sm text-base-content/60 leading-relaxed italic">"{trip.notes}"</p>
-              </div>
-             )}
-          </div>
-
-          <div className="p-8 rounded-xl bg-brand-deep text-white shadow-xl relative overflow-hidden">
-             <div className="absolute -right-4 -top-4 w-24 h-24 bg-brand-vibrant/20 rounded-full blur-2xl"></div>
-             <Sparkles className="text-brand-vibrant mb-6" size={32} />
-             <h4 className="text-xl font-black mb-2">AI Itinerary</h4>
-             <p className="text-sm text-white/60 font-medium mb-8 leading-relaxed">
-               {trip?.itinerary?.length > 0 
-                ? "Your itinerary is ready. You can regenerate it if you've changed your travel dates or notes."
-                : "Your itinerary hasn't been designed yet. Let our specialist AI build your solo adventure."}
-             </p>
-              <Button 
-               onClick={generateItinerary}
-               disabled={generating}
-               variant="primary"
-               className="w-full py-4 rounded-xl font-black btn-premium shadow-lg transition-all"
-              >
-                {generating ? 'Processing DNA...' : trip?.itinerary?.length > 0 ? 'Regenerate Itinerary' : 'Generate with AI'}
-              </Button>
-           </div>
-
-            {/* Packing List Card */}
-            <FeatureGate feature="PACKING">
-              <button 
-                onClick={() => setShowPackingList(true)}
-                className="w-full p-8 rounded-xl bg-base-200 border-2 border-amber-500/20 shadow-lg hover:shadow-xl hover:border-amber-500/40 transition-all group text-left"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="w-14 h-14 rounded-xl bg-amber-500/10 flex items-center justify-center group-hover:bg-amber-500/20 transition-colors">
-                    <Package size={28} className="text-warning" />
-                  </div>
-                  <ChevronRight size={20} className="text-amber-500/40 group-hover:translate-x-1 transition-transform" />
-                </div>
-                <h4 className="text-lg font-black text-base-content mb-1">Packing List</h4>
-                <p className="text-sm text-base-content/60 font-medium">Never forget essentials again</p>
-              </button>
-            </FeatureGate>
-
-            {/* Budget Tracker Card */}
-            <FeatureGate feature="BUDGET">
-              <button 
-                onClick={() => setShowBudget(true)}
-                className="w-full p-8 rounded-xl bg-base-200 border-2 border-emerald-500/20 shadow-lg hover:shadow-xl hover:border-emerald-500/40 transition-all group text-left"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="w-14 h-14 rounded-xl bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
-                    <Wallet size={28} className="text-emerald-500" />
-                  </div>
-                  <ChevronRight size={20} className="text-emerald-500/40 group-hover:translate-x-1 transition-transform" />
-                </div>
-                <h4 className="text-lg font-black text-base-content mb-1">Budget Tracker</h4>
-                <p className="text-sm text-base-content/60 font-medium">Track your trip expenses</p>
-              </button>
-            </FeatureGate>
-
-           {/* Accommodation Card */}
-           <button 
-             onClick={() => setShowAccommodation(true)}
-             className="w-full p-8 rounded-xl bg-base-200 border-2 border-indigo-500/20 shadow-lg hover:shadow-xl hover:border-indigo-500/40 transition-all group text-left"
-           >
-             <div className="flex items-center justify-between mb-4">
-               <div className="w-14 h-14 rounded-xl bg-indigo-500/10 flex items-center justify-center group-hover:bg-indigo-500/20 transition-colors">
-                 <Building size={28} className="text-indigo-500" />
-               </div>
-               <ChevronRight size={20} className="text-indigo-500/40 group-hover:translate-x-1 transition-transform" />
-             </div>
-             <h4 className="text-lg font-black text-base-content mb-1">Accommodation</h4>
-             <p className="text-sm text-base-content/60 font-medium">{accommodations.length > 0 ? `${accommodations.length} booking(s)` : 'Add your stays'}</p>
-           </button>
-
-           {/* Bookings Card */}
-           <button 
-             onClick={() => setShowBookings(true)}
-             className="w-full p-8 rounded-xl bg-base-200 border-2 border-cyan-500/20 shadow-lg hover:shadow-xl hover:border-cyan-500/40 transition-all group text-left"
-           >
-             <div className="flex items-center justify-between mb-4">
-               <div className="w-14 h-14 rounded-xl bg-cyan-500/10 flex items-center justify-center group-hover:bg-cyan-500/20 transition-colors">
-                 <Ticket size={28} className="text-cyan-500" />
-               </div>
-               <ChevronRight size={20} className="text-cyan-500/40 group-hover:translate-x-1 transition-transform" />
-             </div>
-             <h4 className="text-lg font-black text-base-content mb-1">Bookings</h4>
-             <p className="text-sm text-base-content/60 font-medium">{bookings.length > 0 ? `${bookings.length} booking(s)` : 'Transport & tours'}</p>
-           </button>
-
-           {/* Documents Card */}
-           <button 
-             onClick={() => setShowDocuments(true)}
-             className="w-full p-8 rounded-xl bg-base-200 border-2 border-rose-500/20 shadow-lg hover:shadow-xl hover:border-rose-500/40 transition-all group text-left"
-           >
-             <div className="flex items-center justify-between mb-4">
-               <div className="w-14 h-14 rounded-xl bg-rose-500/10 flex items-center justify-center group-hover:bg-rose-500/20 transition-colors">
-                 <FileText size={28} className="text-rose-500" />
-               </div>
-               <ChevronRight size={20} className="text-rose-500/40 group-hover:translate-x-1 transition-transform" />
-             </div>
-             <h4 className="text-lg font-black text-base-content mb-1">Documents</h4>
-             <p className="text-sm text-base-content/60 font-medium">{documents.length > 0 ? `${documents.length} document(s)` : 'Passport, visa, insurance'}</p>
-           </button>
-
-           {/* Saved Places Card */}
-           <button 
-             onClick={() => setShowPlaces(true)}
-           >
-             <div className="flex items-center justify-between mb-4">
-               <div className="w-14 h-14 rounded-xl bg-violet-100 flex items-center justify-center group-hover:bg-violet-200 transition-colors">
-                 <Bookmark size={28} className="text-violet-600" />
-               </div>
-               <ChevronRight size={20} className="text-violet-400 group-hover:translate-x-1 transition-transform" />
-             </div>
-             <h4 className="text-lg font-black text-violet-900 mb-1">Saved Places</h4>
-             <p className="text-sm text-violet-700 font-medium">{savedPlaces.length > 0 ? `${savedPlaces.length} place(s)` : 'Spots to explore'}</p>
-           </button>
-
-           {FEATURES.FLIGHTS && (
-             <div className="mt-6">
-               <FlightStatusWidget 
-                 tripId={id}
-                 onAddToTrip={handleAddFlightToTrip}
-               />
-             </div>
-           )}
-
-           {/* Currency Converter */}
-           <div className="mt-6">
-             <CurrencyConverter defaultFrom="GBP" defaultTo="EUR" initialAmount={100} />
-           </div>
-
-           {/* Places Search */}
-           <div className="mt-6">
-             <PlacesSearch destination={trip?.destination} />
-           </div>
-
-           {/* Transit Directions */}
-           <div className="mt-6">
-             <TransitDirections destination={trip?.destination} />
-           </div>
-
-           {/* Affiliate Links */}
-           <div className="mt-6">
-             <AffiliateLinks destination={trip?.destination} />
-           </div>
-
-           {/* Offline Map Download */}
-           {trip?.destination && (
-             <div className="mt-6">
-               <OfflineMapDownloader
-                 label={`${trip.destination} — Offline Tiles`}
-                 bounds={
-                   trip.destination_lat && trip.destination_lng
-                     ? {
-                         north: trip.destination_lat + 0.3,
-                         south: trip.destination_lat - 0.3,
-                         east: trip.destination_lng + 0.4,
-                         west: trip.destination_lng - 0.4,
-                       }
-                     : null
-                 }
-               />
-             </div>
-           )}
-         </div>
+        </div>
 
         <AnimatePresence>
           {generating && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 z-[100] bg-brand-deep/80 backdrop-blur-xl flex items-center justify-center p-6"
             >
-              <motion.div 
+              <motion.div
                 initial={{ scale: 0.9, y: 20 }}
                 animate={{ scale: 1, y: 0 }}
                 className="max-w-md w-full bg-base-100 p-10 rounded-xl shadow-2xl text-center relative overflow-hidden border border-base-content/10"
               >
                 <div className="absolute top-0 left-0 w-full h-1.5 bg-base-300">
-                  <motion.div 
-                    className="h-full bg-brand-vibrant" 
+                  <motion.div
+                    className="h-full bg-brand-vibrant"
                     initial={{ width: "0%" }}
                     animate={{ width: "100%" }}
                     transition={{ duration: 30, ease: "linear" }}
@@ -1129,220 +830,53 @@ function TripDetail() {
                 </div>
 
                 <div className="mt-10 flex flex-col gap-3">
-{steps.map((step, i) => (
-                      <div key={`step-${step.title}`} className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full ${i <= genStep ? 'bg-brand-vibrant shadow-lg shadow-brand-vibrant/50' : 'bg-base-300'}`} />
-                        <span className={`text-xs font-bold ${i <= genStep ? 'text-base-content' : 'text-base-content/20'}`}>{step.title}</span>
-                        {i === genStep && <span className="ml-auto text-[10px] font-black text-brand-vibrant animate-pulse">Processing...</span>}
-                     </div>
-                   ))}
+                  {steps.map((step, i) => (
+                    <div key={`step-${step.title}`} className="flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full ${i <= genStep ? 'bg-brand-vibrant shadow-lg shadow-brand-vibrant/50' : 'bg-base-300'}`} />
+                      <span className={`text-xs font-bold ${i <= genStep ? 'text-base-content' : 'text-base-content/20'}`}>{step.title}</span>
+                      {i === genStep && <span className="ml-auto text-[10px] font-black text-brand-vibrant animate-pulse">Processing...</span>}
+                    </div>
+                  ))}
                 </div>
-                
+
                 <p className="mt-8 text-[10px] font-black uppercase tracking-widest text-base-content/40">Solo Mission Blueprinting v2.4</p>
               </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Itinerary Timeline */}
-        <div className="lg:col-span-2">
-          {loading ? (
-            <div className="space-y-12">
-{[1,2,3].map(i => (
-                  <div key={`skeleton-${i}`} className="relative pl-8 border-l-2 border-base-content/10 pb-4">
-                    <div className="absolute -left-3 top-0 w-6 h-6 rounded-full bg-base-300 border-2 border-base-100"></div>
-                    <Skeleton className="h-10 w-48 mb-8" />
-                    <div className="space-y-4">
-                       <Skeleton className="h-40 w-full rounded-xl" />
-                       <Skeleton className="h-40 w-full rounded-xl" />
-                    </div>
-                 </div>
-               ))}
-            </div>
-          ) : trip.itinerary && trip.itinerary.length > 0 ? (
-            <div className="space-y-12">
-              <div className="flex items-center justify-between px-2">
-                <h2 className="text-2xl font-black text-base-content">Daily Roadmap</h2>
-                <div className="flex items-center gap-2 text-sm font-bold text-base-content/40">
-                  <CheckCircle2 size={16} className="text-emerald-500" /> Generated by AI
-                </div>
-              </div>
-
-              {trip.itinerary.map((day, dIdx) => (
-                <div key={day.id} className="relative pl-8 border-l-2 border-base-content/10 pb-4">
-                  {/* Day Marker */}
-                  <div className="absolute -left-3 top-0 w-6 h-6 rounded-full bg-base-100 border-2 border-brand-vibrant z-10 flex items-center justify-center">
-                    <div className="w-2 h-2 rounded-full bg-brand-vibrant"></div>
-                  </div>
-                  
-                  <div className="mb-8">
-                     <h3 className="text-2xl font-black text-base-content flex items-baseline gap-3">
-                       Day {day.day_number}
-                      {day.date && <span className="text-sm font-bold text-base-content/40">— {new Date(day.date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</span>}
-                     </h3>
-                     <div className="flex items-center gap-4 mt-2">
-                        {day.notes && <p className="text-brand-accent font-bold text-sm italic">{day.notes}</p>}
-                        <button 
-                           onClick={() => openAddActivity(day.id)}
-                           className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-base-200 text-base-content/60 hover:bg-brand-vibrant hover:text-white text-[10px] font-black uppercase tracking-widest transition-all"
-                        >
-                           <Plus size={12} /> Add Activity
-                        </button>
-                     </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    {day.activities?.length > 0 ? (
-                      day.activities.map((activity, aIdx) => (
-                        <div key={activity.id} className="group relative glass-card p-6 rounded-xl border border-base-content/5 hover:border-brand-vibrant/20 hover:shadow-xl hover:shadow-brand-vibrant/5 transition-all">
-                          <div className="flex flex-col md:flex-row gap-6">
-                             <div className="w-12 h-12 rounded-xl bg-base-200 flex items-center justify-center text-base-content group-hover:bg-brand-vibrant group-hover:text-white transition-colors flex-shrink-0">
-                                {getActivityIcon(activity.type)}
-                             </div>
-                             
-                             <div className="flex-1 space-y-2">
-                                <div className="flex justify-between items-start">
-                                   <div>
-                                      <div className="flex items-center gap-3">
-                                         <h4 className="text-xl font-extrabold text-base-content leading-none">{activity.name}</h4>
-                                         <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md bg-base-200 text-base-content/60">{activity.type}</span>
-                                      </div>
-                                      <p className="text-sm font-bold text-base-content/40 mt-1 flex items-center gap-1">
-                                        <MapPin size={14} /> {activity.location}
-                                      </p>
-                                   </div>
-                                   <div className="text-right flex-shrink-0">
-                                      <p className="text-sm font-black text-base-content">{activity.time || 'Flexible'}</p>
-                                      {activity.duration_hours && <p className="text-xs font-bold text-base-content/40">{activity.duration_hours}h duration</p>}
-                                   </div>
-                                </div>
-                                
-                                {activity.description && (
-                                  <p className="text-sm text-base-content/70 font-medium leading-relaxed">{activity.description}</p>
-                                )}
-                                
-                                <div className="flex flex-wrap items-center gap-4 pt-2">
-                                   {activity.cost > 0 && (
-                                     <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-success/10 text-success text-xs font-black">
-                                       <PoundSterling size={12} /> {activity.cost}
-                                     </div>
-                                   )}
-                                   <a 
-                                      href={`https://www.google.com/maps/search/${encodeURIComponent(activity.name + ' ' + activity.location)}`}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="text-xs font-black text-brand-vibrant hover:underline flex items-center gap-1"
-                                    >
-                                      <MapPin size={12} /> View
-                                    </a>
-                                    <a 
-                                       href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(activity.name + ' ' + (activity.location || ''))}`}
-                                       target="_blank"
-                                       rel="noreferrer"
-                                       className="text-xs font-black text-blue-500 hover:underline flex items-center gap-1"
-                                     >
-                                       <Navigation size={12} /> Directions
-                                     </a>
-                                    {(activity.type === 'Food & Dining' || activity.type === 'Accommodation') && (
-                                      <a 
-                                        href={`https://www.booking.com/search.html?ss=${encodeURIComponent(activity.name + ' ' + (activity.location || trip.destination))}`}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="text-xs font-black text-blue-600 hover:underline flex items-center gap-1"
-                                      >
-                                        <ExternalLink size={12} /> Book Stay
-                                      </a>
-                                    )}
-                                    {activity.type !== 'Transport' && activity.type !== 'Food & Dining' && (
-                                      <a 
-                                        href={`https://www.viator.com/search?q=${encodeURIComponent(activity.name)}&location=${encodeURIComponent(trip.destination)}&pid=${import.meta.env.VITE_VIATOR_PID || ''}`}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="text-xs font-black text-[#ff5900] hover:underline flex items-center gap-1"
-                                      >
-                                        <ExternalLink size={12} /> Book Tour on Viator
-                                      </a>
-                                    )}
-                                   {activity.bookingInfo && (
-                                      <div className="text-xs font-bold text-base-content/40 flex items-center gap-1">
-                                        <Clock size={12} /> {activity.bookingInfo}
-                                      </div>
-                                   )}
-                                </div>
-                             </div>
-
-                             <div className="flex md:flex-col items-center justify-end gap-2 pr-2">
-                                <button 
-                                  onClick={() => openEditActivity(activity)}
-                                  className="p-2 text-base-content/20 hover:text-brand-vibrant hover:bg-base-100 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                  title="Edit Activity"
-                                >
-                                   <Edit2 size={18} />
-                                </button>
-                                <button 
-                                  onClick={() => deleteActivity(activity.id)}
-                                  className="p-2 text-base-content/20 hover:text-error hover:bg-base-100 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                  title="Remove Activity"
-                                >
-                                   <Trash2 size={18} />
-                                </button>
-                             </div>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="p-10 border-2 border-dashed border-base-content/5 rounded-xl flex flex-col items-center justify-center text-center">
-                         <MapPin size={32} className="text-base-content/10 mb-4" />
-                         <p className="text-base-content/40 font-bold">No activities fixed for this day yet.</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="h-full min-h-[500px] flex flex-col items-center justify-center glass-card rounded-xl p-12 text-center">
-               <div className="w-20 h-20 bg-base-200 rounded-xl flex items-center justify-center mb-8 border border-base-content/10">
-                 <Zap size={40} className="text-base-content/20" />
-               </div>
-               <h3 className="text-2xl font-black text-base-content mb-2">Roadmap is Empty</h3>
-               <p className="text-base-content/60 font-medium max-w-sm mx-auto mb-10 text-lg">
-                 Your itinerary hasn't been designed. Use the AI engine in the sidebar to create your perfect solo trip.
-               </p>
-               <Button 
-                onClick={generateItinerary} 
-                disabled={generating}
-                variant="primary" 
-                className="rounded-xl px-12 py-4 font-black btn-premium shadow-2xl"
-               >
-                 {generating ? 'Processing DNA...' : 'Start AI Generation'}
-               </Button>
-            </div>
-          )}
-        </div>
+        <TripMainContent
+          trip={trip}
+          loading={loading}
+          generating={generating}
+          onEditActivity={openEditActivity}
+          onDeleteActivity={deleteActivity}
+          onAddActivity={openAddActivity}
+          onGenerate={generateItinerary}
+        />
       </div>
 
       {/* Add/Edit Activity Modal */}
       {(editingActivity || showAddActivity) && (
         <div className="fixed inset-0 z-[110] bg-brand-deep/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-          <motion.div 
+          <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             className="w-full max-w-xl bg-base-100 rounded-xl shadow-2xl overflow-hidden border border-base-content/10"
           >
             <div className="p-8 border-b border-base-content/5 flex items-center justify-between bg-base-200/50">
-               <div>
-                 <h3 className="text-2xl font-black text-base-content">
-                   {editingActivity ? 'Edit Activity' : 'Add Activity'}
-                 </h3>
-                 <p className="text-sm text-base-content/40 font-medium italic">Refine your solo mission blueprint</p>
-               </div>
-               <button 
-                 onClick={() => { setEditingActivity(null); setShowAddActivity(false); }}
-                 className="w-10 h-10 rounded-xl bg-base-100 shadow-sm border border-base-content/10 flex items-center justify-center text-base-content/40 hover:text-base-content transition-all"
-               >
-                 <X size={20} />
-               </button>
+              <div>
+                <h3 className="text-2xl font-black text-base-content">
+                  {editingActivity ? 'Edit Activity' : 'Add Activity'}
+                </h3>
+                <p className="text-sm text-base-content/40 font-medium italic">Refine your solo mission blueprint</p>
+              </div>
+              <button
+                onClick={() => { setEditingActivity(null); setShowAddActivity(false); }}
+                className="w-10 h-10 rounded-xl bg-base-100 shadow-sm border border-base-content/10 flex items-center justify-center text-base-content/40 hover:text-base-content transition-all"
+              >
+                <X size={20} />
+              </button>
             </div>
 
             <form onSubmit={handleActivitySubmit} className="p-8 space-y-6">

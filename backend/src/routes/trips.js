@@ -1360,7 +1360,7 @@ router.post('/:id/duplicate', requireAuth, tripMutateLimiter, async (req, res) =
 });
 
 // Generate a shareable link for a trip
-router.post('/:id/share', requireAuth, async (req, res) => {
+router.post('/:id/share', requireAuth, tripMutateLimiter, async (req, res) => {
   try {
     const { id } = req.params;
     

@@ -953,8 +953,8 @@ async function initializeDatabase() {
       -- Buddy reports
       CREATE TABLE IF NOT EXISTS buddy_reports (
         id SERIAL PRIMARY KEY,
-        reporter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        reported_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        reporter_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        reported_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
         connection_id INTEGER REFERENCES buddy_requests(id) ON DELETE SET NULL,
         category TEXT DEFAULT 'other' CHECK(category IN (
           'harassment',

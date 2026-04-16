@@ -54,7 +54,7 @@ async function getConnectionForUser(connectionId, userId) {
     SELECT id, sender_id, receiver_id, status
     FROM buddy_requests
     WHERE id = ?
-      AND status IN ('accepted', 'blocked')
+      AND status = 'accepted'
       AND (sender_id = ? OR receiver_id = ?)
   `).get(connectionId, userId, userId);
 }
@@ -538,7 +538,7 @@ router.post('/connections/:id/block', [
 
 router.post('/connections/:id/report', [
   param('id').isNumeric().withMessage('Connection ID is required'),
-  body('reason').isString().trim().isLength({ min: 5, max: 500 }).withMessage('Reason must be 5-500 characters'),
+  body('reason').isString().isLength({ min: 5, max: 500 }).withMessage('Reason must be 5-500 characters'),
   body('details').optional().isString().trim().isLength({ max: 2000 }).withMessage('Details must be under 2000 characters'),
   body('category').optional().isIn(['harassment', 'spam', 'scam', 'inappropriate_content', 'safety_concern', 'other']),
 ], handleValidationErrors, async (req, res) => {

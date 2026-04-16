@@ -362,7 +362,7 @@ router.get('/:id/export', privacyActionLimiter, requireAuth, requireFeature(FEAT
     const trips = await db.prepare('SELECT id, user_id, name, destination, start_date, end_date, budget, status, notes, created_at, updated_at FROM trips WHERE user_id = ?').all(id);
     
     // 3. Batch fetch all itinerary_days for these trips (FIXED: was 'itineraries' which doesn't exist)
-    const tripIds = trips.map(t => t.id);
+    const tripIds = trips.map(t => parseInt(t.id, 10)).filter(id => Number.isInteger(id) && id > 0);
     let itineraryDays = [];
     let activities = [];
     
@@ -372,7 +372,7 @@ router.get('/:id/export', privacyActionLimiter, requireAuth, requireFeature(FEAT
       itineraryDays = await db.prepare(`SELECT id, trip_id, day_number, date, notes FROM itinerary_days WHERE trip_id IN (${placeholders})`).all(...tripIds);
       
       // 4. Batch fetch all activities for these itinerary days
-      const dayIds = itineraryDays.map(d => d.id);
+      const dayIds = itineraryDays.map(d => parseInt(d.id, 10)).filter(id => Number.isInteger(id) && id > 0);
       if (dayIds.length > 0) {
         const activityPlaceholders = dayIds.map(() => '?').join(',');
         activities = await db.prepare(`SELECT id, day_id, trip_id, name, type, location, time, duration_hours, cost, booking_info, notes, order_index FROM activities WHERE day_id IN (${activityPlaceholders})`).all(...dayIds);

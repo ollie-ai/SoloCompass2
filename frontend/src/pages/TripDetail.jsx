@@ -82,6 +82,7 @@ import TransitDirections from '../components/TransitDirections';
 import AffiliateLinks from '../components/AffiliateLinks';
 import SafetyCheckIn from '../components/SafetyCheckIn';
 import SoloSafetyHub from '../components/SoloSafetyHub';
+import OfflineMapDownloader from '../components/OfflineMapDownloader';
 import { FEATURES } from '../config/features';
 // import TripItinerary from '../components/trip/TripItinerary';
 // import TripSidebar from '../components/trip/TripSidebar';
@@ -1064,6 +1065,25 @@ function TripDetail() {
            <div className="mt-6">
              <AffiliateLinks destination={trip?.destination} />
            </div>
+
+           {/* Offline Map Download */}
+           {trip?.destination && (
+             <div className="mt-6">
+               <OfflineMapDownloader
+                 label={`${trip.destination} — Offline Tiles`}
+                 bounds={
+                   trip.destination_lat && trip.destination_lng
+                     ? {
+                         north: trip.destination_lat + 0.3,
+                         south: trip.destination_lat - 0.3,
+                         east: trip.destination_lng + 0.4,
+                         west: trip.destination_lng - 0.4,
+                       }
+                     : null
+                 }
+               />
+             </div>
+           )}
          </div>
 
         <AnimatePresence>

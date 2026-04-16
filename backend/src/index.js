@@ -256,6 +256,39 @@ const { default: countriesRoutes } = await import('./routes/countries.js');
     // health - generic status only
     app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
+    // Serve sitemap.xml and robots.txt (P2 requirements)
+    app.get('/sitemap.xml', async (req, res) => {
+      try {
+        const sitemap = await generateSitemap();
+        res.set('Content-Type', 'application/xml');
+        if (sitemap && typeof sitemap === 'string') {
+          return res.send(sitemap);
+        }
+        // Fall back to path-based serving if generateSitemap returns a file path
+        const sitemapPath = typeof sitemap === 'object' && sitemap?.path ? sitemap.path : null;
+        if (sitemapPath) {
+          return res.sendFile(sitemapPath);
+        }
+        res.status(503).send('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
+      } catch (err) {
+        logger.warn('[Sitemap] Failed:', err.message);
+        res.status(503).send('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
+      }
+    });
+
+    app.get('/robots.txt', (req, res) => {
+      res.type('text/plain');
+      const siteUrl = process.env.FRONTEND_URL || 'https://solocompass.app';
+      res.send([
+        'User-agent: *',
+        'Allow: /',
+        'Disallow: /admin',
+        'Disallow: /api/',
+        '',
+        `Sitemap: ${siteUrl}/sitemap.xml`,
+      ].join('\n'));
+    });
+
     // 404 handler for unknown API routes
     app.use('/api', (req, res) => {
       res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'API endpoint not found' } });

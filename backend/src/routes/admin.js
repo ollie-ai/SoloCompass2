@@ -4289,3 +4289,107 @@ router.patch('/reports/:id', ...adminGuard, async (req, res) => {
   }
 });
 
+
+// ──────────────────────────────────────────────
+// FAQ article management (admin)
+// ──────────────────────────────────────────────
+
+router.get('/faq', ...adminGuard, async (req, res) => {
+  try {
+    const rows = await db.all('SELECT * FROM faq_articles ORDER BY category, display_order');
+    res.json({ success: true, data: { articles: rows || [] } });
+  } catch (error) {
+    logger.error(`[Admin] Failed to list FAQ articles: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Failed to list FAQ articles' });
+  }
+});
+
+router.post('/faq', ...adminGuard, async (req, res) => {
+  try {
+    const { title, content, category, display_order = 0, active = true } = req.body;
+    if (!title?.trim() || !content?.trim() || !category?.trim()) {
+      return res.status(400).json({ success: false, error: 'title, content, and category are required' });
+    }
+    const result = await db.run(
+      'INSERT INTO faq_articles (title, content, category, display_order, active) VALUES (?, ?, ?, ?, ?)',
+      title.trim(), content.trim(), category.trim(), display_order, active ? true : false
+    );
+    res.status(201).json({ success: true, data: { id: result.lastInsertRowid } });
+  } catch (error) {
+    logger.error(`[Admin] Failed to create FAQ article: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Failed to create FAQ article' });
+  }
+});
+
+router.put('/faq/:id', ...adminGuard, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, content, category, display_order, active } = req.body;
+    await db.run(
+      'UPDATE faq_articles SET title = ?, content = ?, category = ?, display_order = ?, active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      title, content, category, display_order, active ? true : false, id
+    );
+    res.json({ success: true });
+  } catch (error) {
+    logger.error(`[Admin] Failed to update FAQ article: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Failed to update FAQ article' });
+  }
+});
+
+router.delete('/faq/:id', ...adminGuard, async (req, res) => {
+  try {
+    await db.run('DELETE FROM faq_articles WHERE id = ?', req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    logger.error(`[Admin] Failed to delete FAQ article: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Failed to delete FAQ article' });
+  }
+});
+
+// ──────────────────────────────────────────────
+// Changelog management (admin)
+// ──────────────────────────────────────────────
+
+router.get('/changelog', ...adminGuard, async (req, res) => {
+  try {
+    const rows = await db.all('SELECT * FROM changelog_entries ORDER BY created_at DESC LIMIT 100');
+    res.json({ success: true, data: { entries: rows || [] } });
+  } catch (error) {
+    logger.error(`[Admin] Failed to list changelog entries: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Failed to list changelog entries' });
+  }
+});
+
+router.post('/changelog', ...adminGuard, async (req, res) => {
+  try {
+    const { version, title, description = '', type = 'feature', published = false } = req.body;
+    if (!version?.trim() || !title?.trim()) {
+      return res.status(400).json({ success: false, error: 'version and title are required' });
+    }
+    const publishedAt = published ? new Date().toISOString() : null;
+    const result = await db.run(
+      'INSERT INTO changelog_entries (version, title, description, type, published, published_at) VALUES (?, ?, ?, ?, ?, ?)',
+      version.trim(), title.trim(), description, type, published ? true : false, publishedAt
+    );
+    res.status(201).json({ success: true, data: { id: result.lastInsertRowid } });
+  } catch (error) {
+    logger.error(`[Admin] Failed to create changelog entry: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Failed to create changelog entry' });
+  }
+});
+
+router.patch('/changelog/:id', ...adminGuard, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { published, title, description, type } = req.body;
+    const publishedAt = published ? new Date().toISOString() : null;
+    await db.run(
+      'UPDATE changelog_entries SET published = ?, published_at = ?, title = COALESCE(?, title), description = COALESCE(?, description), type = COALESCE(?, type) WHERE id = ?',
+      published ? true : false, publishedAt, title, description, type, id
+    );
+    res.json({ success: true });
+  } catch (error) {
+    logger.error(`[Admin] Failed to update changelog entry: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Failed to update changelog entry' });
+  }
+});

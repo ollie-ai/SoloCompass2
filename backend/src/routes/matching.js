@@ -600,7 +600,14 @@ const handlePotentialMatches = async (req, res) => {
   try {
     const userId = req.userId;
     const limit = parseInt(req.query.limit) || 20;
-    const { destination, startDate, endDate, genderPref } = req.query;
+    const { destination, startDate, endDate } = req.query;
+
+    // Validate and sanitize genderPref before use in query
+    const VALID_GENDER_PREFS = ['female', 'male', 'non_binary'];
+    const rawGenderPref = req.query.genderPref;
+    const genderPref = (typeof rawGenderPref === 'string' && VALID_GENDER_PREFS.includes(rawGenderPref))
+      ? rawGenderPref
+      : null;
 
     const blocked = await db.prepare(`
       SELECT blocked_id FROM buddy_blocks WHERE blocker_id = ?
@@ -630,9 +637,8 @@ const handlePotentialMatches = async (req, res) => {
     }
 
     // Gender preference filter (optional): match users whose gender_identity equals the requested value
-    const VALID_GENDER_PREFS = ['female', 'male', 'non_binary'];
     let genderClause = '';
-    if (genderPref && VALID_GENDER_PREFS.includes(genderPref)) {
+    if (genderPref) {
       genderClause = `AND p.gender_identity = ?`;
       params.push(genderPref);
     }

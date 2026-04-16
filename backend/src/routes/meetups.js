@@ -1,5 +1,6 @@
 import express from 'express';
 import { body, param, query, validationResult } from 'express-validator';
+import rateLimit from 'express-rate-limit';
 import { authenticate } from '../middleware/auth.js';
 import db from '../db.js';
 import logger from '../services/logger.js';
@@ -7,6 +8,10 @@ import { createNotification } from '../services/notificationService.js';
 
 const router = express.Router();
 router.use(authenticate);
+
+// Rate limit: 60 requests per minute per IP for meetup reads, 20 per minute for mutations
+const readLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false });
+const writeLimiter = rateLimit({ windowMs: 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
 
 const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
@@ -29,7 +34,7 @@ function getMeetupSafetyWarning(meetupDate) {
 }
 
 // GET /meetups  — list upcoming meetups (optionally filter by destination)
-router.get('/', [
+router.get('/', readLimiter, [
   query('destination').optional().isString().trim().isLength({ max: 120 }),
   query('limit').optional().isInt({ min: 1, max: 100 }),
   query('offset').optional().isInt({ min: 0 }),
@@ -83,7 +88,7 @@ router.get('/', [
 });
 
 // POST /meetups  — create a new meetup (requires at least 3 attendees capacity)
-router.post('/', [
+router.post('/', writeLimiter, [
   body('title').isString().trim().isLength({ min: 3, max: 120 }).withMessage('Title must be 3–120 characters'),
   body('description').optional().isString().trim().isLength({ max: 1000 }),
   body('destination').isString().trim().isLength({ min: 2, max: 120 }).withMessage('Destination is required'),
@@ -147,7 +152,7 @@ router.post('/', [
 });
 
 // GET /meetups/:id — get single meetup with attendees
-router.get('/:id', [
+router.get('/:id', readLimiter, [
   param('id').isNumeric(),
 ], handleValidationErrors, async (req, res) => {
   try {
@@ -183,7 +188,7 @@ router.get('/:id', [
 });
 
 // PUT /meetups/:id/rsvp — RSVP to a meetup
-router.put('/:id/rsvp', [
+router.put('/:id/rsvp', writeLimiter, [
   param('id').isNumeric(),
   body('status').isIn(['going', 'maybe', 'not_going']).withMessage('status must be going, maybe, or not_going'),
 ], handleValidationErrors, async (req, res) => {
@@ -262,7 +267,7 @@ router.put('/:id/rsvp', [
 });
 
 // DELETE /meetups/:id — cancel a meetup (organizer only)
-router.delete('/:id', [
+router.delete('/:id', writeLimiter, [
   param('id').isNumeric(),
 ], handleValidationErrors, async (req, res) => {
   try {

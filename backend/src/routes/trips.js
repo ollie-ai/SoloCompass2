@@ -37,6 +37,15 @@ const tripMutateLimiter = rateLimit({
   message: { success: false, code: 'RATE_LIMITED', message: 'Too many requests. Please slow down.' }
 });
 
+// Rate limiter for calendar export (lightweight file generation)
+const calendarExportLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour window
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, code: 'RATE_LIMITED', message: 'Too many calendar export requests. Please try again later.' }
+});
+
 // Standardized error response helper
 function formatError(code, message) {
   return { success: false, error: { code, message } };
@@ -1485,7 +1494,7 @@ router.get('/:id/collaborators', requireAuth, async (req, res) => {
 });
 
 // Calendar export (.ics) for a trip
-router.get('/:id/calendar', requireAuth, async (req, res) => {
+router.get('/:id/calendar', requireAuth, calendarExportLimiter, async (req, res) => {
   try {
     const { id } = req.params;
 

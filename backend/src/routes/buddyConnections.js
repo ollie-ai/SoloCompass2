@@ -7,7 +7,6 @@ import logger from '../services/logger.js';
 import { handleBuddyReportCreated } from '../services/moderation.js';
 
 const router = express.Router();
-router.use(requireAuth);
 
 const buddyConnectionsLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -20,7 +19,10 @@ const buddyConnectionsLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+// Apply general rate limit BEFORE authentication to guard against DoS on auth checks
 router.use(buddyConnectionsLimiter);
+router.use(requireAuth);
 
 const reportLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,

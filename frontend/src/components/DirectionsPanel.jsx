@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { MapPin, Navigation, Bus, Footprints, Car, Clock, ArrowRight, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import DOMPurify from 'dompurify';
 import api from '../lib/api';
 
 const MODES = [
@@ -8,9 +9,18 @@ const MODES = [
   { value: 'driving', label: 'Drive', icon: Car },
 ];
 
+function extractPlainText(html) {
+  if (!html) return '';
+  // Sanitize first, then extract text via a temporary element
+  const clean = DOMPurify.sanitize(html, { ALLOWED_TAGS: [] });
+  const el = document.createElement('span');
+  el.innerHTML = clean;
+  return el.textContent || el.innerText || '';
+}
+
 const StepItem = ({ step, index }) => {
   const instruction = step.html_instructions
-    ? step.html_instructions.replace(/<[^>]*>/g, '')
+    ? extractPlainText(step.html_instructions)
     : step.maneuver?.instruction || step.instructions || '';
   const dist = step.distance?.text || step.distance || '';
   const dur = step.duration?.text || step.duration || '';

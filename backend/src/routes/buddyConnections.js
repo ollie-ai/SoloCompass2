@@ -9,6 +9,19 @@ import { handleBuddyReportCreated } from '../services/moderation.js';
 const router = express.Router();
 router.use(requireAuth);
 
+const buddyConnectionsLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  keyGenerator: (req) => String(req.userId || req.ip),
+  message: {
+    success: false,
+    error: { code: 'TOO_MANY_REQUESTS', message: 'Too many buddy safety actions. Please try again shortly.' }
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+router.use(buddyConnectionsLimiter);
+
 const reportLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 5,
@@ -46,7 +59,7 @@ router.post(
   '/:id/report',
   reportLimiter,
   [
-    body('reason').isString().trim().isLength({ min: 3, max: 500 }).withMessage('reason is required'),
+    body('reason').isString().trim().isLength({ min: 3, max: 500 }).withMessage('Reason must be between 3 and 500 characters'),
     body('details').optional().isString().trim().isLength({ max: 2000 }).withMessage('details too long'),
   ],
   handleValidationErrors,

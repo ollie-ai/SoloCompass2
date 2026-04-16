@@ -4,6 +4,7 @@ import { authenticate } from '../middleware/auth.js';
 import { notifyEmergencyContacts, createNotification } from '../services/notificationService.js';
 import { broadcastToUser } from '../services/websocket.js';
 import logger from '../services/logger.js';
+import { requireFeature, FEATURES } from '../middleware/paywall.js';
 
 const router = express.Router();
 
@@ -62,7 +63,7 @@ function formatScheduleResponse(s) {
 }
 
 // POST /checkin/schedule - Create a recurring check-in schedule
-router.post('/schedule', authenticate, async (req, res) => {
+router.post('/schedule', authenticate, requireFeature(FEATURES.SCHEDULED_CHECKIN), async (req, res) => {
   try {
     const { tripId, interval, startTime, endTime, timezone = 'UTC' } = req.body;
 
@@ -689,7 +690,7 @@ router.get('/history', authenticate, async (req, res) => {
 });
 
 // POST /scheduled-checkins - Schedule a check-in
-router.post('/scheduled', authenticate, async (req, res) => {
+router.post('/scheduled', authenticate, requireFeature(FEATURES.SCHEDULED_CHECKIN), async (req, res) => {
   try {
     const {
       tripId,

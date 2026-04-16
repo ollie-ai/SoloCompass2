@@ -9,6 +9,7 @@ import * as pushService from '../services/pushService.js';
 import * as email from '../services/email.js';
 import multer from 'multer';
 import { supabaseStorage } from '../services/supabaseStorage.js';
+import { requireFeature, FEATURES } from '../middleware/paywall.js';
 
 const router = express.Router();
 
@@ -130,7 +131,7 @@ router.get('/trips', async (req, res) => {
 });
 
 // Discovery: Find buddies for a destination without needing a trip context
-router.get('/discovery', async (req, res) => {
+router.get('/discovery', requireFeature(FEATURES.BUDDY_DISCOVERY), async (req, res) => {
   try {
     const { destination } = req.query;
     const userId = req.userId;
@@ -170,7 +171,7 @@ router.get('/discovery', async (req, res) => {
 router.post('/buddies', [
   body('tripId').isNumeric().withMessage('Trip ID is required'),
   body('message').optional().isLength({ max: 500 }).withMessage('Message must be under 500 characters'),
-], handleValidationErrors, async (req, res) => {
+], handleValidationErrors, requireFeature(FEATURES.BUDDY_DISCOVERY), async (req, res) => {
   try {
     const { tripId, message } = req.body;
     const senderId = req.userId;

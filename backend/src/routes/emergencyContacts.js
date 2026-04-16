@@ -4,6 +4,7 @@ import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { sendVerificationSMS } from '../services/smsService.js';
 import { v4 as uuidv4 } from 'uuid';
 import logger from '../services/logger.js';
+import { requireFeature, FEATURES } from '../middleware/paywall.js';
 
 const router = express.Router();
 
@@ -86,7 +87,7 @@ router.get('/:id', authenticate, async (req, res) => {
 });
 
 // POST /emergency-contacts - Create new contact
-router.post('/', authenticate, async (req, res) => {
+router.post('/', authenticate, requireFeature(FEATURES.EMERGENCY_CONTACTS), async (req, res) => {
   try {
     const {
       name,

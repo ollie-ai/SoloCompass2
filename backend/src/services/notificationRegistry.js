@@ -252,6 +252,28 @@ export const NOTIFICATION_TYPES = {
     channels: [CHANNEL.EMAIL, CHANNEL.IN_APP],
     controlLevel: CONTROL_LEVEL.SYSTEM_MANAGED,
   },
+
+  // === MARKETING & DIGEST (P3) ===
+  marketing_promotion: {
+    name: 'Promotion',
+    description: 'Promotional offers and deals (weekly digest, unsubscribable)',
+    priority: PRIORITY.P3_INFO,
+    channels: [CHANNEL.EMAIL],
+    controlLevel: CONTROL_LEVEL.USER_CONTROLLED,
+    preferenceKey: 'marketingNotifications',
+    batchable: true,
+    digestFrequency: 'weekly',
+  },
+  content_tip: {
+    name: 'Tips & Content',
+    description: 'Travel tips, content updates, and recommendations (daily digest)',
+    priority: PRIORITY.P3_INFO,
+    channels: [CHANNEL.EMAIL, CHANNEL.IN_APP],
+    controlLevel: CONTROL_LEVEL.USER_CONTROLLED,
+    preferenceKey: 'marketingNotifications',
+    batchable: true,
+    digestFrequency: 'daily',
+  },
 };
 
 export const OPS_ALERT_TYPES = {

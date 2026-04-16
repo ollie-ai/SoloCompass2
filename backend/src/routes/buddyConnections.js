@@ -60,7 +60,7 @@ router.post(
   reportLimiter,
   [
     body('reason').isString().trim().isLength({ min: 3, max: 500 }).withMessage('Reason must be between 3 and 500 characters'),
-    body('details').optional().isString().trim().isLength({ max: 2000 }).withMessage('details too long'),
+    body('details').optional().isString().trim().isLength({ max: 2000 }).withMessage('Details must not exceed 2000 characters'),
   ],
   handleValidationErrors,
   async (req, res) => {

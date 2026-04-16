@@ -16,7 +16,7 @@ export async function handleBuddyReportCreated({ reportId, reportedId }) {
 
     await db.prepare(`
       UPDATE users
-      SET is_flagged = TRUE, updated_at = CURRENT_TIMESTAMP
+      SET is_flagged = true, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).run(reportedId);
 

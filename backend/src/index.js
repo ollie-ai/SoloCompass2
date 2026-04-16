@@ -55,6 +55,10 @@ async function bootstrap() {
     const { initWebSocketServer } = await import('./services/websocket.js');
     const { startScheduledCheckInMonitor } = await import('./services/checkinMonitor.js');
     const { generateSitemap } = await import('./services/sitemapService.js');
+    const { startTripAutoStatusService } = await import('./services/tripAutoStatus.js');
+    const { startFlightStatusPoller } = await import('./services/flightStatusPoller.js');
+    const { startSafetyDataRefresh } = await import('./services/safetyDataRefresh.js');
+    const { startUsageResetService } = await import('./services/usageReset.js');
 
     // route imports
     const { default: authRoutes } = await import('./routes/auth.js');
@@ -267,6 +271,10 @@ const { default: countriesRoutes } = await import('./routes/countries.js');
         console.log(`\x1b[32m SoloCompass Core Online :: Listening on Port ${PORT} \x1b[0m`);
         initWebSocketServer(server);
         startScheduledCheckInMonitor();
+        startTripAutoStatusService();
+        startFlightStatusPoller();
+        startSafetyDataRefresh();
+        startUsageResetService();
         generateSitemap().catch(err => logger.error(`[SEO] Sitemap fail: ${err.message}`));
         
         // Automated Production Seeding (Phase 5) - Development only

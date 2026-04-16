@@ -2090,6 +2090,55 @@ async function runMigrations() {
     await markMigration('v028_buddy_safety');
   }
 
+  // --- Migration v029: AI daily usage tracking + flight_status_cache + trip fields ---
+  if (!await hasMigration('v029_ai_daily_usage_and_flights')) {
+    try {
+      // Per-day AI usage table for tier-based daily limits
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS ai_usage_daily (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          usage_date TEXT NOT NULL,
+          count INTEGER DEFAULT 0,
+          UNIQUE(user_id, usage_date)
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_usage_daily_user_date ON ai_usage_daily(user_id, usage_date)`);
+
+      // Flight status cache table for poller (15-min TTL)
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS flight_status_cache (
+          id SERIAL PRIMARY KEY,
+          flight_number TEXT NOT NULL,
+          flight_date TEXT NOT NULL,
+          user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          trip_id INTEGER REFERENCES trips(id) ON DELETE SET NULL,
+          status TEXT,
+          gate TEXT,
+          delay_minutes INTEGER DEFAULT 0,
+          terminal TEXT,
+          raw_data JSONB,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(flight_number, flight_date)
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_flight_cache_number_date ON flight_status_cache(flight_number, flight_date)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_flight_cache_user ON flight_status_cache(user_id)`);
+
+      // Trip fields for auto-status and notifications
+      await pool.query(`ALTER TABLE trips ADD COLUMN IF NOT EXISTS reminder_24h_sent BOOLEAN DEFAULT false`);
+      await pool.query(`ALTER TABLE trips ADD COLUMN IF NOT EXISTS safety_refreshed_at TIMESTAMP`);
+
+      // safety_refreshed_at on destinations for safety data refresh service
+      await pool.query(`ALTER TABLE destinations ADD COLUMN IF NOT EXISTS safety_refreshed_at TIMESTAMP`);
+
+      logger.info('[Migration v029] AI daily usage, flight cache, trip fields applied');
+    } catch (error) {
+      logger.warn('[Migration v029] skipped:', error.message);
+    }
+    await markMigration('v029_ai_daily_usage_and_flights');
+  }
+
   logger.info('[Migration] All migrations complete');
 }
 

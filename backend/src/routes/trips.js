@@ -1484,4 +1484,52 @@ router.get('/:id/collaborators', requireAuth, async (req, res) => {
   }
 });
 
+// Calendar export (.ics) for a trip
+router.get('/:id/calendar', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const trip = await db.prepare(`
+      SELECT id, user_id, name, destination, start_date, end_date, description
+      FROM trips WHERE id = ? AND user_id = ?
+    `).get(id, req.userId);
+
+    if (!trip) {
+      return res.status(404).json(formatError('NOT_FOUND', 'Trip not found'));
+    }
+
+    // Load activities
+    const activities = await db.prepare(`
+      SELECT a.id, a.name, a.description, a.location_name, a.address, a.scheduled_start, a.scheduled_end
+      FROM activities a
+      JOIN itinerary_days d ON a.day_id = d.id
+      WHERE d.trip_id = ?
+      ORDER BY a.scheduled_start ASC NULLS LAST
+    `).all(id);
+
+    // Load cached flights for this trip
+    const flights = await db.prepare(`
+      SELECT flight_number, flight_date, status, raw_data
+      FROM flight_status_cache
+      WHERE trip_id = ?
+      ORDER BY flight_date ASC
+    `).all(id);
+
+    const { buildTripCalendar } = await import('../services/calendarExport.js');
+    const icsContent = buildTripCalendar({
+      ...trip,
+      activities,
+      flights: flights.map(f => ({ ...(f.raw_data || {}), flight_number: f.flight_number }))
+    });
+
+    const filename = `trip-${trip.id}-${(trip.name || 'calendar').replace(/[^a-z0-9]/gi, '-').toLowerCase()}.ics`;
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(icsContent);
+  } catch (error) {
+    logger.error('Calendar export error:', error);
+    res.status(500).json(formatError('INTERNAL_ERROR', 'Failed to export calendar'));
+  }
+});
+
 export default router;

@@ -39,14 +39,17 @@ const Partnerships = lazy(() => import('./pages/Partnerships'));
 const EmailPreview = lazy(() => import('./pages/EmailPreview'));
 const Safety = lazy(() => import('./pages/Safety'));
 const Help = lazy(() => import('./pages/Help'));
+const Support = lazy(() => import('./pages/Support'));
 const OAuthCallback = lazy(() => import('./pages/OAuthCallback'));
 const Contact = lazy(() => import('./pages/Contact'));
 const About = lazy(() => import('./pages/About'));
 const Docs = lazy(() => import('./pages/Docs'));
 const Features = lazy(() => import('./pages/Features'));
 const Pricing = lazy(() => import('./pages/Pricing'));
+const Subscription = lazy(() => import('./pages/Subscription'));
 const SafetyInfo = lazy(() => import('./pages/SafetyInfo'));
 const EmergencyPhrases = lazy(() => import('./pages/EmergencyPhrases'));
+const Phrasebook = lazy(() => import('./pages/Phrasebook'));
 const Translator = lazy(() => import('./pages/Translator'));
 const PinkPath = lazy(() => import('./pages/PinkPath'));
 const CrimeMap = lazy(() => import('./pages/CrimeMap'));
@@ -151,6 +154,8 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/features" element={<Features />} />
             <Route path="/pricing" element={<Pricing />} />
+            <Route path="/pricing/plans" element={<Pricing />} />
+            <Route path="/subscription" element={<Subscription />} />
             <Route path="/safety-info" element={<SafetyInfo />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
@@ -306,6 +311,14 @@ function App() {
               }
             />
             <Route
+              path="/phrasebook"
+              element={
+                <ProtectedRoute>
+                  <Phrasebook />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/safety/translator"
               element={
                 <ProtectedRoute>
@@ -345,6 +358,7 @@ function App() {
             <Route path="/cookies" element={<Cookies />} />
             <Route path="/legal" element={<Legal />} />
             <Route path="/help" element={<Help />} />
+            <Route path="/support" element={<Support />} />
             <Route path="/docs" element={<Docs />} />
             <Route path="/partnerships" element={<Partnerships />} />
             <Route path="/contact" element={<Contact />} />

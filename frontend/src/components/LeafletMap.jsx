@@ -2,9 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import MapControls from './MapControls';
 
 const DEFAULT_CENTER = [51.505, -0.09];
 const DEFAULT_ZOOM = 13;
+const LAYER_URLS = {
+  street: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  terrain: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+  dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+};
 
 const createCustomIcon = (color = '#10b981') => {
   return L.divIcon({
@@ -73,10 +79,12 @@ export default function LeafletMap({
   height = '400px',
   interactive = true,
   showZoomControls = true,
+  showMapControls = true,
   className = '',
 }) {
   const mapRef = useRef(null);
   const [mapCenter, setMapCenter] = useState(center || DEFAULT_CENTER);
+  const [activeLayer, setActiveLayer] = useState('street');
 
   useEffect(() => {
     if (center && Array.isArray(center) && center.length === 2) {
@@ -94,12 +102,13 @@ export default function LeafletMap({
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom={interactive}
         dragging={interactive}
-        zoomControl={showZoomControls}
+        zoomControl={showZoomControls && !showMapControls}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          url={LAYER_URLS[activeLayer] || LAYER_URLS.street}
         />
+        {showMapControls && <MapControls activeLayer={activeLayer} onLayerChange={setActiveLayer} />}
         
         {onMapClick && (
           <MapClickHandler onClick={onMapClick} />

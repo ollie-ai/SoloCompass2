@@ -78,7 +78,7 @@ import FeatureGate from '../components/FeatureGate';
 import WeatherWidget from '../components/WeatherWidget';
 import CurrencyConverter from '../components/CurrencyConverter';
 import PlacesSearch from '../components/PlacesSearch';
-import TransitDirections from '../components/TransitDirections';
+import DirectionsPanel from '../components/DirectionsPanel';
 import AffiliateLinks from '../components/AffiliateLinks';
 import SafetyCheckIn from '../components/SafetyCheckIn';
 import SoloSafetyHub from '../components/SoloSafetyHub';
@@ -1055,10 +1055,10 @@ function TripDetail() {
              <PlacesSearch destination={trip?.destination} />
            </div>
 
-           {/* Transit Directions */}
-           <div className="mt-6">
-             <TransitDirections destination={trip?.destination} />
-           </div>
+            {/* Transit Directions */}
+            <div className="mt-6">
+              <DirectionsPanel destination={trip?.destination} />
+            </div>
 
            {/* Affiliate Links */}
            <div className="mt-6">

@@ -28,6 +28,7 @@ const Register = () => {
   });
   const [registeredEmail, setRegisteredEmail] = useState('');
   const plan = new URLSearchParams(location.search).get('plan');
+  const referralCode = new URLSearchParams(location.search).get('ref') || '';
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -111,8 +112,8 @@ const Register = () => {
     if (!validate()) return;
 
     try {
-      await register(formData.email, formData.password, formData.name);
-      trackEvent('signup_complete', { method: 'email' });
+      await register(formData.email, formData.password, formData.name, referralCode || undefined);
+      trackEvent('signup_complete', { method: 'email', hasReferral: !!referralCode });
       setRegisteredEmail(formData.email);
     } catch (err) {
       console.error('Registration failed:', err);

@@ -6,6 +6,20 @@ import { I18nProvider } from './i18n/I18nProvider'
 import { trackFrontendError } from './lib/errorTracking'
 import './index.css'
 
+// Bootstrap Google Analytics using the Vite env variable (resolved at build time)
+const gaId = import.meta.env.VITE_GA_ID;
+if (gaId) {
+  const script = document.createElement('script');
+  script.async = true;
+  script.src = `https://www.googletagmanager.com/gtag/js?id=${gaId}`;
+  document.head.appendChild(script);
+  window.dataLayer = window.dataLayer || [];
+  function gtag() { window.dataLayer.push(arguments); }
+  window.gtag = gtag;
+  gtag('js', new Date());
+  gtag('config', gaId);
+}
+
 function ErrorFallback({ error, resetErrorBoundary }) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-mesh p-4">

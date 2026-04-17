@@ -13,9 +13,41 @@ import VerificationModal from '../components/VerificationModal';
 import { ACTIVITY_INTERESTS, VIBE_INTERESTS } from '../constants/interests';
 import DashboardShell from '../components/dashboard/DashboardShell';
 import PageHeader from '../components/PageHeader';
+import { useI18n } from '../i18n/I18nProvider';
 
 const EASE = [0.16, 1, 0.3, 1];
 const cardClass = "glass-card p-6 rounded-3xl border border-base-300/50";
+
+function LanguagePreference() {
+  const { locale, setLocale, t, supportedLocales } = useI18n();
+  return (
+    <div className={cardClass}>
+      <div className="p-6 border-b border-base-300/50 flex items-center justify-between">
+        <h3 className="text-base font-black text-base-content flex items-center gap-2">
+          <Globe size={16} className="text-brand-vibrant" /> {t('settings.language')}
+        </h3>
+      </div>
+      <div className="p-6">
+        <p className="text-sm text-base-content/60 mb-4">{t('settings.languageDesc')}</p>
+        <div className="flex gap-3">
+          {supportedLocales.map((code) => (
+            <button
+              key={code}
+              onClick={() => setLocale(code)}
+              className={`px-5 py-2.5 rounded-xl text-sm font-bold border transition-all ${
+                locale === code
+                  ? 'bg-brand-vibrant text-white border-brand-vibrant shadow-md shadow-brand-vibrant/20'
+                  : 'border-base-300 text-base-content/60 hover:border-brand-vibrant/40 hover:text-base-content'
+              }`}
+            >
+              {t(`locale.${code}`)}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const Settings = () => {
   const { user, updateUser, logout, refreshUser, initialized } = useAuthStore();
@@ -765,6 +797,8 @@ const Settings = () => {
                       </div>
                     </motion.div>
                   )}
+
+                  <LanguagePreference />
 
                   {lastSaved && !hasUnsavedChanges && (
                     <div className="flex items-center gap-2 text-xs text-base-content/40 font-medium">

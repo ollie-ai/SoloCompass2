@@ -80,7 +80,7 @@ router.get('/', requireAuth, async (req, res) => {
 router.get('/me', requireAuth, async (req, res) => {
   try {
     const user = await db.prepare(`
-      SELECT u.id, u.email, u.name, u.role, u.created_at, u.updated_at,
+      SELECT u.id, u.email, u.name, u.role, u.created_at, u.updated_at, u.tour_seen,
              p.avatar_url, p.bio, p.phone, p.company, p.website, p.home_city, p.interests, p.travel_style
       FROM users u
       LEFT JOIN profiles p ON u.id = p.user_id
@@ -104,6 +104,16 @@ router.get('/me', requireAuth, async (req, res) => {
   }
 });
 
+router.put('/tour-seen', requireAuth, async (req, res) => {
+  try {
+    await db.prepare('UPDATE users SET tour_seen = true WHERE id = ?').run(req.userId);
+    res.json({ success: true });
+  } catch (error) {
+    logger.error(`[Users] Failed to mark tour as seen: ${error.message}`);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update tour status' } });
+  }
+});
+
 router.get('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
@@ -117,7 +127,7 @@ router.get('/:id', requireAuth, async (req, res) => {
     }
 
     const user = await db.prepare(`
-      SELECT u.id, u.email, u.name, u.role, u.created_at, u.updated_at,
+      SELECT u.id, u.email, u.name, u.role, u.created_at, u.updated_at, u.tour_seen,
              p.avatar_url, p.bio, p.phone, p.company, p.website, p.home_city, p.interests, p.travel_style
       FROM users u
       LEFT JOIN profiles p ON u.id = p.user_id

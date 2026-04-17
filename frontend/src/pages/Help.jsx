@@ -194,6 +194,11 @@ const Help = () => {
                     <p className="text-xs uppercase tracking-wider text-brand-vibrant font-bold mb-1">{article.category}</p>
                     <h3 className="font-bold text-base-content mb-2">{article.title}</h3>
                     <p className="text-sm text-base-content/70">{article.summary}</p>
+                    {article.updatedAt && (
+                      <p className="mt-3 text-xs text-base-content/40 font-medium">
+                        Updated {new Date(article.updatedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>

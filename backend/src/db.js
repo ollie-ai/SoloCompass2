@@ -245,6 +245,7 @@ async function initializeDatabase() {
         solo_travel_experience TEXT,
         pronouns TEXT,
         safety_priority TEXT,
+        gender_identity TEXT CHECK(gender_identity IN ('female', 'male', 'non_binary', 'prefer_not_to_say') OR gender_identity IS NULL),
         visible BOOLEAN DEFAULT true,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -1060,13 +1061,25 @@ async function initializeDatabase() {
         UNIQUE(blocker_id, blocked_id)
       );
 
-      -- User recent searches
-      CREATE TABLE IF NOT EXISTS user_recent_searches (
+      -- Buddy reports
+      CREATE TABLE IF NOT EXISTS buddy_reports (
         id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        query TEXT NOT NULL,
-        searched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, query)
+        reporter_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        reported_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        connection_id INTEGER REFERENCES buddy_requests(id) ON DELETE SET NULL,
+        category TEXT DEFAULT 'other' CHECK(category IN (
+          'harassment',
+          'spam',
+          'scam',
+          'inappropriate_content',
+          'safety_concern',
+          'other'
+        )),
+        reason TEXT NOT NULL,
+        details TEXT,
+        status TEXT DEFAULT 'open' CHECK(status IN ('open', 'in_review', 'resolved', 'dismissed')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
       -- Budgets (trip-level totals)
@@ -1252,155 +1265,32 @@ async function initializeDatabase() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
-      -- SOS Events
-      CREATE TABLE IF NOT EXISTS sos_events (
+      -- Buddy meetups
+      CREATE TABLE IF NOT EXISTS buddy_meetups (
         id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        trip_id INTEGER REFERENCES trips(id) ON DELETE SET NULL,
-        triggered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        cancelled_at TIMESTAMP,
-        resolved_at TIMESTAMP,
-        status TEXT DEFAULT 'active' CHECK(status IN ('active', 'cancelled', 'resolved', 'acknowledged')),
-        latitude REAL,
-        longitude REAL,
-        address TEXT,
-        message TEXT,
-        trigger_type TEXT DEFAULT 'manual' CHECK(trigger_type IN ('manual', 'missed_checkin', 'auto')),
-        acknowledged_by TEXT,
-        acknowledged_at TIMESTAMP,
-        cancelled_by TEXT DEFAULT 'user',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- SOS Notifications
-      CREATE TABLE IF NOT EXISTS sos_notifications (
-        id SERIAL PRIMARY KEY,
-        sos_event_id INTEGER NOT NULL REFERENCES sos_events(id) ON DELETE CASCADE,
-        contact_id INTEGER REFERENCES emergency_contacts(id) ON DELETE SET NULL,
-        channel TEXT NOT NULL CHECK(channel IN ('sms', 'email', 'push')),
-        status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'sent', 'delivered', 'failed')),
-        sent_at TIMESTAMP,
-        delivered_at TIMESTAMP,
-        error_message TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Safe Return Plans
-      CREATE TABLE IF NOT EXISTS safe_return_plans (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        trip_id INTEGER REFERENCES trips(id) ON DELETE CASCADE,
-        status TEXT DEFAULT 'draft' CHECK(status IN ('draft', 'active', 'activated', 'completed')),
-        embassy_name TEXT,
-        embassy_address TEXT,
-        embassy_phone TEXT,
-        embassy_email TEXT,
-        hospital_name TEXT,
-        hospital_address TEXT,
-        hospital_phone TEXT,
-        nearest_airport TEXT,
-        airport_code TEXT,
-        flight_back TEXT,
-        flight_back_date TIMESTAMP,
-        accommodation_name TEXT,
-        accommodation_address TEXT,
-        accommodation_phone TEXT,
-        emergency_fund_amount REAL,
-        emergency_fund_currency TEXT DEFAULT 'USD',
-        notes TEXT,
-        activated_at TIMESTAMP,
-        shared_with_guardians BOOLEAN DEFAULT false,
-        offline_cached BOOLEAN DEFAULT false,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Safety Areas (for area safety mapping)
-      CREATE TABLE IF NOT EXISTS safety_areas (
-        id SERIAL PRIMARY KEY,
-        destination_id INTEGER REFERENCES destinations(id) ON DELETE CASCADE,
-        name TEXT NOT NULL,
+        organizer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
         description TEXT,
-        polygon TEXT,
-        safety_level TEXT DEFAULT 'moderate' CHECK(safety_level IN ('safe', 'moderate', 'caution', 'avoid')),
-        day_safety TEXT DEFAULT 'moderate' CHECK(day_safety IN ('safe', 'moderate', 'caution', 'avoid')),
-        night_safety TEXT DEFAULT 'caution' CHECK(night_safety IN ('safe', 'moderate', 'caution', 'avoid')),
-        notes TEXT,
-        source TEXT DEFAULT 'admin',
+        destination TEXT NOT NULL,
+        location_name TEXT,
+        meetup_date TIMESTAMP NOT NULL,
+        max_attendees INTEGER DEFAULT 10 CHECK(max_attendees BETWEEN 3 AND 50),
+        is_public BOOLEAN DEFAULT true,
+        safety_notes TEXT,
+        status TEXT DEFAULT 'open' CHECK(status IN ('open', 'full', 'cancelled', 'completed')),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
-      -- Safety Reports (user-submitted)
-      CREATE TABLE IF NOT EXISTS safety_reports (
+      -- Buddy meetup RSVPs
+      CREATE TABLE IF NOT EXISTS buddy_meetup_rsvps (
         id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-        latitude REAL,
-        longitude REAL,
-        address TEXT,
-        report_type TEXT NOT NULL CHECK(report_type IN ('theft', 'harassment', 'unsafe_area', 'scam', 'other')),
-        description TEXT,
-        severity TEXT DEFAULT 'medium' CHECK(severity IN ('low', 'medium', 'high')),
-        validated_count INTEGER DEFAULT 0,
-        invalidated_count INTEGER DEFAULT 0,
-        status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'validated', 'dismissed')),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Guardian Relationships
-      CREATE TABLE IF NOT EXISTS guardian_relationships (
-        id SERIAL PRIMARY KEY,
-        traveller_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        guardian_token TEXT UNIQUE NOT NULL,
-        guardian_email TEXT NOT NULL,
-        guardian_name TEXT,
-        status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'active', 'declined', 'revoked')),
-        permission_view_location BOOLEAN DEFAULT true,
-        permission_receive_alerts BOOLEAN DEFAULT true,
-        permission_view_itinerary BOOLEAN DEFAULT false,
-        trip_id INTEGER REFERENCES trips(id) ON DELETE SET NULL,
-        location_sharing_enabled BOOLEAN DEFAULT false,
-        last_location_lat REAL,
-        last_location_lng REAL,
-        last_location_at TIMESTAMP,
-        invited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        accepted_at TIMESTAMP,
-        revoked_at TIMESTAMP,
-        expires_at TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Check-in Confirmations
-      CREATE TABLE IF NOT EXISTS check_in_confirmations (
-        id SERIAL PRIMARY KEY,
-        scheduled_check_in_id INTEGER NOT NULL REFERENCES scheduled_check_ins(id) ON DELETE CASCADE,
+        meetup_id INTEGER NOT NULL REFERENCES buddy_meetups(id) ON DELETE CASCADE,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        confirmed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        latitude REAL,
-        longitude REAL,
-        address TEXT,
-        message TEXT,
-        snooze_until TIMESTAMP
-      );
-
-      -- Embassies
-      CREATE TABLE IF NOT EXISTS embassies (
-        id SERIAL PRIMARY KEY,
-        country_code TEXT NOT NULL,
-        nationality_code TEXT NOT NULL,
-        embassy_name TEXT NOT NULL,
-        address TEXT,
-        phone TEXT,
-        email TEXT,
-        website TEXT,
-        emergency_phone TEXT,
-        city TEXT,
-        latitude REAL,
-        longitude REAL,
+        status TEXT DEFAULT 'going' CHECK(status IN ('going', 'maybe', 'not_going')),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(meetup_id, user_id)
       );
     `);
 
@@ -1458,6 +1348,9 @@ async function initializeDatabase() {
       
       -- Buddy block indexes
       CREATE INDEX IF NOT EXISTS idx_buddy_blocks_blocker ON buddy_blocks(blocker_id);
+      CREATE INDEX IF NOT EXISTS idx_buddy_reports_reporter ON buddy_reports(reporter_id);
+      CREATE INDEX IF NOT EXISTS idx_buddy_reports_reported ON buddy_reports(reported_user_id);
+      CREATE INDEX IF NOT EXISTS idx_buddy_reports_status ON buddy_reports(status);
 
       -- Buddy messages indexes
       CREATE INDEX IF NOT EXISTS idx_messages_conversation ON buddy_messages(conversation_id, created_at DESC);
@@ -1505,19 +1398,13 @@ async function initializeDatabase() {
       CREATE INDEX IF NOT EXISTS idx_calls_conversation ON buddy_calls(conversation_id);
       CREATE INDEX IF NOT EXISTS idx_calls_status ON buddy_calls(status);
 
-      -- SOS indexes
-      CREATE INDEX IF NOT EXISTS idx_sos_events_user ON sos_events(user_id);
-      CREATE INDEX IF NOT EXISTS idx_sos_events_status ON sos_events(status);
-      CREATE INDEX IF NOT EXISTS idx_sos_notifications_event ON sos_notifications(sos_event_id);
-      CREATE INDEX IF NOT EXISTS idx_safe_return_plans_user ON safe_return_plans(user_id);
-      CREATE INDEX IF NOT EXISTS idx_safe_return_plans_trip ON safe_return_plans(trip_id);
-      CREATE INDEX IF NOT EXISTS idx_safety_areas_destination ON safety_areas(destination_id);
-      CREATE INDEX IF NOT EXISTS idx_safety_reports_location ON safety_reports(latitude, longitude);
-      CREATE INDEX IF NOT EXISTS idx_guardian_relationships_traveller ON guardian_relationships(traveller_id);
-      CREATE INDEX IF NOT EXISTS idx_guardian_relationships_token ON guardian_relationships(guardian_token);
-      CREATE INDEX IF NOT EXISTS idx_check_in_confirmations_scheduled ON check_in_confirmations(scheduled_check_in_id);
-      CREATE INDEX IF NOT EXISTS idx_embassies_country ON embassies(country_code);
-      CREATE INDEX IF NOT EXISTS idx_embassies_nationality ON embassies(nationality_code);
+      -- Buddy meetup indexes
+      CREATE INDEX IF NOT EXISTS idx_meetups_organizer ON buddy_meetups(organizer_id);
+      CREATE INDEX IF NOT EXISTS idx_meetups_destination ON buddy_meetups(destination);
+      CREATE INDEX IF NOT EXISTS idx_meetups_date ON buddy_meetups(meetup_date);
+      CREATE INDEX IF NOT EXISTS idx_meetups_status ON buddy_meetups(status);
+      CREATE INDEX IF NOT EXISTS idx_meetup_rsvps_meetup ON buddy_meetup_rsvps(meetup_id);
+      CREATE INDEX IF NOT EXISTS idx_meetup_rsvps_user ON buddy_meetup_rsvps(user_id);
     `);
 
     // Migration for existing tables: Add status and source to destinations
@@ -2392,41 +2279,66 @@ async function runMigrations() {
     await markMigration('v027_ai_observability');
   }
 
-  // --- Migration v028: Billing improvements (idempotent webhooks, billing columns, usage counters) ---
-  if (!await hasMigration('v028_billing_improvements')) {
+  // --- Migration v028: Add gender_identity to profiles ---
+  if (!await hasMigration('v028_profiles_gender_identity')) {
     try {
       await pool.query(`
-        CREATE TABLE IF NOT EXISTS stripe_processed_events (
-          id SERIAL PRIMARY KEY,
-          stripe_event_id TEXT UNIQUE NOT NULL,
-          event_type TEXT NOT NULL,
-          processed_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-        )
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'gender_identity') THEN
+            ALTER TABLE profiles ADD COLUMN gender_identity TEXT;
+          END IF;
+        END $$;
       `);
-      await pool.query(`CREATE INDEX IF NOT EXISTS idx_stripe_events_id ON stripe_processed_events(stripe_event_id)`);
-      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'inactive'`);
-      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_period_end TIMESTAMPTZ`);
-      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_cancel_at_period_end BOOLEAN DEFAULT false`);
-      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT`);
-      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_interval TEXT DEFAULT 'month'`);
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS usage_counters (
-          id SERIAL PRIMARY KEY,
-          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          counter_type TEXT NOT NULL,
-          period TEXT NOT NULL,
-          count INTEGER DEFAULT 0,
-          last_reset_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-          UNIQUE(user_id, counter_type, period)
-        )
-      `);
-      await pool.query(`CREATE INDEX IF NOT EXISTS idx_usage_counters_user ON usage_counters(user_id, counter_type)`);
-      logger.info('[Migration v028] billing improvements applied');
+      logger.info('[Migration v028] profiles.gender_identity added');
     } catch (error) {
       logger.warn('[Migration v028] skipped:', error.message);
     }
-    await markMigration('v028_billing_improvements');
+    await markMigration('v028_profiles_gender_identity');
+  }
+
+  // --- Migration v029: Add buddy_meetups and buddy_meetup_rsvps tables ---
+  if (!await hasMigration('v029_buddy_meetups')) {
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS buddy_meetups (
+          id SERIAL PRIMARY KEY,
+          organizer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          title TEXT NOT NULL,
+          description TEXT,
+          destination TEXT NOT NULL,
+          location_name TEXT,
+          meetup_date TIMESTAMP NOT NULL,
+          max_attendees INTEGER DEFAULT 10,
+          is_public BOOLEAN DEFAULT true,
+          safety_notes TEXT,
+          status TEXT DEFAULT 'open',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS buddy_meetup_rsvps (
+          id SERIAL PRIMARY KEY,
+          meetup_id INTEGER NOT NULL REFERENCES buddy_meetups(id) ON DELETE CASCADE,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          status TEXT DEFAULT 'going',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(meetup_id, user_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_meetups_organizer ON buddy_meetups(organizer_id);
+        CREATE INDEX IF NOT EXISTS idx_meetups_destination ON buddy_meetups(destination);
+        CREATE INDEX IF NOT EXISTS idx_meetups_date ON buddy_meetups(meetup_date);
+        CREATE INDEX IF NOT EXISTS idx_meetups_status ON buddy_meetups(status);
+        CREATE INDEX IF NOT EXISTS idx_meetup_rsvps_meetup ON buddy_meetup_rsvps(meetup_id);
+        CREATE INDEX IF NOT EXISTS idx_meetup_rsvps_user ON buddy_meetup_rsvps(user_id);
+      `);
+      logger.info('[Migration v029] buddy_meetups and buddy_meetup_rsvps tables created');
+    } catch (error) {
+      logger.warn('[Migration v029] skipped:', error.message);
+    }
+    await markMigration('v029_buddy_meetups');
   }
 
   logger.info('[Migration] All migrations complete');

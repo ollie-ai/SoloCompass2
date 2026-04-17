@@ -31,6 +31,7 @@ const Admin = lazy(() => import('./pages/AdminNew'));
 const Advisories = lazy(() => import('./pages/Advisories'));
 const Reviews = lazy(() => import('./pages/Reviews'));
 const Buddies = lazy(() => import('./pages/Buddies'));
+const Meetups = lazy(() => import('./pages/Meetups'));
 const Terms = lazy(() => import('./pages/Terms'));
 const Privacy = lazy(() => import('./pages/Privacy'));
 const Cookies = lazy(() => import('./pages/Cookies'));
@@ -196,6 +197,22 @@ function App() {
             />
             <Route
               path="/messages"
+              element={
+                <ProtectedRoute>
+                  <Messages />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/buddy/messages"
+              element={
+                <ProtectedRoute>
+                  <Messages />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/buddy/messages/:id"
               element={
                 <ProtectedRoute>
                   <Messages />
@@ -443,24 +460,21 @@ function App() {
                 <Buddies />
               </ProtectedRoute>
             } />
-            <Route path="/buddy" element={<Navigate to="/buddies" replace />} />
-            <Route path="/explore" element={<Navigate to="/destinations" replace />} />
-            <Route
-              path="/journal"
-              element={
-                <ProtectedRoute>
-                  <Journal />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/budget"
-              element={
-                <ProtectedRoute>
-                  <Budget />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/buddy" element={
+              <ProtectedRoute>
+                <Buddies />
+              </ProtectedRoute>
+            } />
+            <Route path="/buddy/discover" element={
+              <ProtectedRoute>
+                <Buddies />
+              </ProtectedRoute>
+            } />
+            <Route path="/buddy/meetups" element={
+              <ProtectedRoute>
+                <Meetups />
+              </ProtectedRoute>
+            } />
             <Route path="/terms" element={<Terms />} />
             <Route path="/guides" element={<Guides />} />
             <Route path="/tips" element={<Tips />} />

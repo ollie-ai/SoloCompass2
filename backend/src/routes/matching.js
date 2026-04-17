@@ -1,5 +1,5 @@
 import express from 'express';
-import { body, validationResult } from 'express-validator';
+import { body, param, validationResult } from 'express-validator';
 import { requireAuth } from '../middleware/auth.js';
 import db from '../db.js';
 import logger from '../services/logger.js';
@@ -47,6 +47,16 @@ async function sendBuddyNotification(userId, notificationType, title, message, d
   } catch (err) {
     logger.error(`[BuddyNotification] Failed to send ${notificationType}:`, err.message);
   }
+}
+
+async function getConnectionForUser(connectionId, userId) {
+  return db.prepare(`
+    SELECT id, sender_id, receiver_id, status
+    FROM buddy_requests
+    WHERE id = ?
+      AND status = 'accepted'
+      AND (sender_id = ? OR receiver_id = ?)
+  `).get(connectionId, userId, userId);
 }
 
 router.use(requireAuth);
@@ -464,6 +474,102 @@ router.get('/connections', async (req, res) => {
   }
 });
 
+router.delete('/connections/:id', [
+  param('id').isNumeric().withMessage('Connection ID is required'),
+], handleValidationErrors, async (req, res) => {
+  try {
+    const connectionId = parseInt(req.params.id, 10);
+    const userId = req.userId;
+
+    const connection = await getConnectionForUser(connectionId, userId);
+    if (!connection || connection.status !== 'accepted') {
+      return res.status(404).json({ error: 'Connection not found' });
+    }
+
+    await db.prepare(`DELETE FROM buddy_requests WHERE id = ?`).run(connectionId);
+
+    await db.prepare(`
+      DELETE FROM buddy_conversations
+      WHERE (participant_a = ? AND participant_b = ?)
+         OR (participant_a = ? AND participant_b = ?)
+    `).run(connection.sender_id, connection.receiver_id, connection.receiver_id, connection.sender_id);
+
+    res.json({ success: true, message: 'Connection removed' });
+  } catch (error) {
+    logger.error(`[Matching] Failed to remove connection: ${error.message}`);
+    res.status(500).json({ error: 'Failed to remove connection' });
+  }
+});
+
+router.post('/connections/:id/block', [
+  param('id').isNumeric().withMessage('Connection ID is required'),
+  body('reason').optional().isLength({ max: 500 }).withMessage('Reason must be under 500 characters'),
+], handleValidationErrors, async (req, res) => {
+  try {
+    const connectionId = parseInt(req.params.id, 10);
+    const userId = req.userId;
+    const connection = await getConnectionForUser(connectionId, userId);
+
+    if (!connection || connection.status !== 'accepted') {
+      return res.status(404).json({ error: 'Connection not found' });
+    }
+
+    const blockedId = connection.sender_id === userId ? connection.receiver_id : connection.sender_id;
+
+    await db.prepare(`
+      INSERT INTO buddy_blocks (blocker_id, blocked_id, reason, created_at)
+      VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT (blocker_id, blocked_id)
+      DO UPDATE SET reason = EXCLUDED.reason, created_at = EXCLUDED.created_at
+    `).run(userId, blockedId, req.body.reason || 'Blocked from connection');
+
+    await db.prepare(`
+      UPDATE buddy_requests
+      SET status = 'blocked', updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(connectionId);
+
+    res.json({ success: true, message: 'User blocked' });
+  } catch (error) {
+    logger.error(`[Matching] Failed to block connection: ${error.message}`);
+    res.status(500).json({ error: 'Failed to block user' });
+  }
+});
+
+router.post('/connections/:id/report', [
+  param('id').isNumeric().withMessage('Connection ID is required'),
+  body('reason').isString().isLength({ min: 5, max: 500 }).withMessage('Reason must be 5-500 characters'),
+  body('details').optional().isString().trim().isLength({ max: 2000 }).withMessage('Details must be under 2000 characters'),
+  body('category').optional().isIn(['harassment', 'spam', 'scam', 'inappropriate_content', 'safety_concern', 'other']),
+], handleValidationErrors, async (req, res) => {
+  try {
+    const connectionId = parseInt(req.params.id, 10);
+    const userId = req.userId;
+    const connection = await getConnectionForUser(connectionId, userId);
+
+    if (!connection) {
+      return res.status(404).json({ error: 'Connection not found' });
+    }
+
+    const reportedUserId = connection.sender_id === userId ? connection.receiver_id : connection.sender_id;
+    const { reason, details, category = 'other' } = req.body;
+
+    const reportResult = await db.prepare(`
+      INSERT INTO buddy_reports (reporter_id, reported_user_id, connection_id, category, reason, details)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(userId, reportedUserId, connectionId, category, reason.trim(), details?.trim() || null);
+
+    res.status(201).json({
+      success: true,
+      data: { id: reportResult.lastInsertRowid, connectionId, reportedUserId, status: 'open' },
+      message: 'Report submitted successfully'
+    });
+  } catch (error) {
+    logger.error(`[Matching] Failed to report connection: ${error.message}`);
+    res.status(500).json({ error: 'Failed to submit report' });
+  }
+});
+
 router.post('/blocks', [
   body('userId').isNumeric().withMessage('User ID is required'),
   body('reason').optional().isLength({ max: 200 }),
@@ -490,11 +596,18 @@ router.post('/blocks', [
 });
 
 // Enhanced matching endpoints
-router.get('/potential', async (req, res) => {
+const handlePotentialMatches = async (req, res) => {
   try {
     const userId = req.userId;
     const limit = parseInt(req.query.limit) || 20;
-    const { destination } = req.query;
+    const { destination, startDate, endDate } = req.query;
+
+    // Validate and sanitize genderPref before use in query
+    const VALID_GENDER_PREFS = ['female', 'male', 'non_binary'];
+    const rawGenderPref = req.query.genderPref;
+    const genderPref = (typeof rawGenderPref === 'string' && VALID_GENDER_PREFS.includes(rawGenderPref))
+      ? rawGenderPref
+      : null;
 
     const blocked = await db.prepare(`
       SELECT blocked_id FROM buddy_blocks WHERE blocker_id = ?
@@ -513,6 +626,23 @@ router.get('/potential', async (req, res) => {
       params.push(`%${destination}%`);
     }
 
+    let dateClause = '';
+    if (startDate) {
+      dateClause += ` AND tb.end_date >= ?`;
+      params.push(startDate);
+    }
+    if (endDate) {
+      dateClause += ` AND tb.start_date <= ?`;
+      params.push(endDate);
+    }
+
+    // Gender preference filter (optional): match users whose gender_identity equals the requested value
+    let genderClause = '';
+    if (genderPref) {
+      genderClause = `AND p.gender_identity = ?`;
+      params.push(genderPref);
+    }
+
     params.push(limit);
 
     const matches = await db.prepare(`
@@ -520,7 +650,7 @@ router.get('/potential', async (req, res) => {
         tb.id, tb.user_id, tb.destination, tb.start_date, tb.end_date, tb.interests,
         u.name as user_name, u.email as user_email,
         p.avatar_url, p.bio, p.travel_style, p.budget_level, p.pace,
-        p.solo_travel_experience, p.accommodation_type
+        p.solo_travel_experience, p.accommodation_type, p.gender_identity
       FROM travel_buddies tb
       JOIN users u ON tb.user_id = u.id
       LEFT JOIN profiles p ON tb.user_id = p.user_id
@@ -528,6 +658,8 @@ router.get('/potential', async (req, res) => {
       AND tb.status IN ('searching', 'matched')
       ${blockedClause}
       ${destClause}
+      ${dateClause}
+      ${genderClause}
       ORDER BY tb.created_at DESC
       LIMIT ?
     `).all(...params);
@@ -598,7 +730,10 @@ router.get('/potential', async (req, res) => {
     logger.error(`[Matching] Failed to fetch potential matches: ${error.message}`);
     res.status(500).json({ error: 'Failed to fetch potential matches' });
   }
-});
+};
+
+router.get('/potential', handlePotentialMatches);
+router.get('/discover', handlePotentialMatches);
 
 router.get('/solo-id', async (req, res) => {
   try {

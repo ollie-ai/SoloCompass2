@@ -54,7 +54,7 @@ async function bootstrap() {
     const { default: logger } = await import('./services/logger.js');
     const { initWebSocketServer } = await import('./services/websocket.js');
     const { startScheduledCheckInMonitor } = await import('./services/checkinMonitor.js');
-    const { startEmailScheduler } = await import('./services/emailScheduler.js');
+    const { startCriticalEventQueue } = await import('./services/criticalEventQueue.js');
     const { generateSitemap } = await import('./services/sitemapService.js');
 
     // route imports
@@ -81,6 +81,8 @@ async function bootstrap() {
     const { default: currencyRoutes } = await import('./routes/currency.js');
     const { default: placesRoutes } = await import('./routes/places.js');
     const { default: directionsRoutes } = await import('./routes/directions.js');
+    const { default: mapsRoutes } = await import('./routes/maps.js');
+    const { default: contentRoutes } = await import('./routes/content.js');
     const { default: affiliateRoutes } = await import('./routes/affiliates.js');
     const { default: matchingRoutes } = await import('./routes/matching.js');
     const { default: messagesRoutes } = await import('./routes/messages.js');
@@ -93,6 +95,9 @@ async function bootstrap() {
     const { default: adminRoutes } = await import('./routes/admin.js');
     const { default: safetyRoutes } = await import('./routes/safety.js');
     const { default: aiRoutes } = await import('./routes/ai.js');
+    const { default: atlasRoutes } = await import('./routes/atlas.js');
+    const { default: featureFlagRoutes } = await import('./routes/featureFlags.js');
+    const { default: searchRoutes } = await import('./routes/search.js');
     const { default: translateRoutes } = await import('./routes/translate.js');
     const { default: helpRoutes } = await import('./routes/help.js');
     const { default: webhookRoutes } = await import('./routes/webhooks.js');
@@ -160,6 +165,8 @@ const { default: countriesRoutes } = await import('./routes/countries.js');
     // routes (applying core ones)
     app.use('/api/auth', authRoutes);
     app.use('/api/ai', aiRoutes);
+    app.use('/api/v1/atlas', atlasRoutes);
+    app.use('/api/v1/feature-flags', featureFlagRoutes);
     app.use('/api/trips', tripRoutes);
     app.use('/api/accommodations', accommodationsRoutes);
     app.use('/api/bookings', bookingsRoutes);
@@ -186,6 +193,9 @@ const { default: countriesRoutes } = await import('./routes/countries.js');
     app.use('/api/quiz', quizRoutes);
     app.use('/api/places', placesRoutes);
     app.use('/api/directions', directionsRoutes);
+    app.use('/api/v1/maps', mapsRoutes);
+    app.use('/api/v1/content', contentRoutes);
+    app.use('/api/search', searchRoutes);
     app.use('/api/exchange', exchangeRoutes);
     app.use('/api/packing-lists', packingListsRoutes);
     app.use('/api/categories', categoryRoutes);
@@ -270,7 +280,7 @@ const { default: countriesRoutes } = await import('./routes/countries.js');
         console.log(`\x1b[32m SoloCompass Core Online :: Listening on Port ${PORT} \x1b[0m`);
         initWebSocketServer(server);
         startScheduledCheckInMonitor();
-        startEmailScheduler();
+        startCriticalEventQueue();
         generateSitemap().catch(err => logger.error(`[SEO] Sitemap fail: ${err.message}`));
         
         // Automated Production Seeding (Phase 5) - Development only

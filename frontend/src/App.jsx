@@ -1,5 +1,5 @@
 import { useEffect, lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useAuthStore } from './stores/authStore';
@@ -58,12 +58,10 @@ const GuardianAcknowledge = lazy(() => import('./pages/GuardianAcknowledge'));
 const GuardianDecline = lazy(() => import('./pages/GuardianDecline'));
 const SharedTrip = lazy(() => import('./pages/SharedTrip'));
 const BottomNav = lazy(() => import('./components/BottomNav'));
-const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
-const MagicLink = lazy(() => import('./pages/MagicLink'));
-const Profile = lazy(() => import('./pages/Profile'));
-const ProfileEdit = lazy(() => import('./pages/ProfileEdit'));
-const PublicProfile = lazy(() => import('./pages/PublicProfile'));
-const Onboarding = lazy(() => import('./pages/Onboarding'));
+const Journal = lazy(() => import('./pages/Journal'));
+const Budget = lazy(() => import('./pages/Budget'));
+const Guides = lazy(() => import('./pages/Guides'));
+const Tips = lazy(() => import('./pages/Tips'));
 
 function LoadingFallback() {
   return (
@@ -339,6 +337,8 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            {/* SC-SHARED-05: /phrasebook alias */}
+            <Route path="/phrasebook" element={<Navigate to="/safety/emergency-phrases" replace />} />
             <Route
               path="/safety/translator"
               element={
@@ -374,7 +374,27 @@ function App() {
                 <Buddies />
               </ProtectedRoute>
             } />
+            <Route path="/buddy" element={<Navigate to="/buddies" replace />} />
+            <Route path="/explore" element={<Navigate to="/destinations" replace />} />
+            <Route
+              path="/journal"
+              element={
+                <ProtectedRoute>
+                  <Journal />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/budget"
+              element={
+                <ProtectedRoute>
+                  <Budget />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/terms" element={<Terms />} />
+            <Route path="/guides" element={<Guides />} />
+            <Route path="/tips" element={<Tips />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/cookies" element={<Cookies />} />
             <Route path="/legal" element={<Legal />} />

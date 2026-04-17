@@ -5,7 +5,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import App from './App.jsx'
 import './index.css'
-import { queryClient } from './lib/queryClient.js'
+import { trackWebVitals } from './lib/webVitals'
 
 function ErrorFallback({ error, resetErrorBoundary }) {
   return (
@@ -41,6 +41,14 @@ function ErrorFallback({ error, resetErrorBoundary }) {
   )
 }
 
+// Inject Vercel Analytics script in production (consent-free, no PII collected)
+if (import.meta.env.PROD) {
+  const va = document.createElement('script');
+  va.defer = true;
+  va.src   = '/_vercel/insights/script.js';
+  document.head.appendChild(va);
+}
+
 // Hide main content initially to prevent FOUC
 document.getElementById('main-content')?.classList.add('visible');
 
@@ -57,3 +65,5 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </QueryClientProvider>
   </React.StrictMode>,
 )
+
+trackWebVitals();

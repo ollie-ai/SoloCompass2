@@ -1044,6 +1044,7 @@ async function initializeDatabase() {
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         month TEXT NOT NULL,
+        day TEXT,
         type TEXT NOT NULL,
         count INTEGER DEFAULT 0,
         UNIQUE(user_id, month, type)
@@ -1057,6 +1058,15 @@ async function initializeDatabase() {
         reason TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(blocker_id, blocked_id)
+      );
+
+      -- User recent searches
+      CREATE TABLE IF NOT EXISTS user_recent_searches (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        query TEXT NOT NULL,
+        searched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, query)
       );
 
       -- Budgets (trip-level totals)
@@ -1242,222 +1252,92 @@ async function initializeDatabase() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
-      -- Critical events table (guaranteed-delivery for SOS and high-priority alerts)
-      -- Rows remain in this table until delivery is confirmed; a background job retries
-      -- any row where status = 'pending' or 'failed' and delivery_attempts < 10.
-      CREATE TABLE IF NOT EXISTS critical_events (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-        event_type TEXT NOT NULL,
-        payload TEXT NOT NULL,
-        status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'delivered', 'failed')),
-        delivery_attempts INTEGER DEFAULT 0,
-        delivered_at TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Trip legs table (multi-destination leg structure)
-      CREATE TABLE IF NOT EXISTS trip_legs (
-        id SERIAL PRIMARY KEY,
-        trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
-        leg_order INTEGER NOT NULL DEFAULT 1,
-        origin TEXT NOT NULL,
-        destination TEXT NOT NULL,
-        departure_date DATE,
-        arrival_date DATE,
-        transport_mode TEXT,
-        notes TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Transport segments table (multi-modal transport per leg)
-      CREATE TABLE IF NOT EXISTS transport_segments (
-        id SERIAL PRIMARY KEY,
-        trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
-        trip_leg_id INTEGER REFERENCES trip_legs(id) ON DELETE SET NULL,
-        mode TEXT DEFAULT 'other' CHECK(mode IN ('flight', 'train', 'bus', 'ferry', 'car', 'other')),
-        provider TEXT,
-        from_location TEXT,
-        to_location TEXT,
-        departure_datetime TIMESTAMP,
-        arrival_datetime TIMESTAMP,
-        booking_ref TEXT,
-        seat_info TEXT,
-        cost NUMERIC,
-        currency TEXT DEFAULT 'USD',
-        notes TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Journal entries table
-      CREATE TABLE IF NOT EXISTS journal_entries (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        trip_id INTEGER REFERENCES trips(id) ON DELETE SET NULL,
-        entry_date DATE DEFAULT CURRENT_DATE,
-        title TEXT,
-        text TEXT,
-        mood TEXT,
-        location TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Journal photos table
-      CREATE TABLE IF NOT EXISTS journal_photos (
-        id SERIAL PRIMARY KEY,
-        journal_entry_id INTEGER NOT NULL REFERENCES journal_entries(id) ON DELETE CASCADE,
-        photo_url TEXT NOT NULL,
-        caption TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Atlas conversations table (AI conversation history)
+      -- Atlas conversations table
       CREATE TABLE IF NOT EXISTS atlas_conversations (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        trip_id INTEGER REFERENCES trips(id) ON DELETE SET NULL,
         title TEXT,
-        messages TEXT NOT NULL DEFAULT '[]',
-        model_used TEXT,
+        context TEXT DEFAULT '{}',
+        message_count INTEGER DEFAULT 0,
+        last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+      CREATE INDEX IF NOT EXISTS idx_atlas_conversations_user_id ON atlas_conversations(user_id);
 
-      -- Feature flags table
-      CREATE TABLE IF NOT EXISTS feature_flags (
+      -- Atlas messages table
+      CREATE TABLE IF NOT EXISTS atlas_messages (
         id SERIAL PRIMARY KEY,
-        flag_key TEXT UNIQUE NOT NULL,
-        is_enabled BOOLEAN DEFAULT false,
-        description TEXT,
-        allowed_tiers TEXT DEFAULT '[]',
-        rollout_percentage INTEGER DEFAULT 100 CHECK(rollout_percentage >= 0 AND rollout_percentage <= 100),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Safe return plans table
-      CREATE TABLE IF NOT EXISTS safe_return_plans (
-        id SERIAL PRIMARY KEY,
+        conversation_id INTEGER NOT NULL REFERENCES atlas_conversations(id) ON DELETE CASCADE,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
-        plan_json TEXT NOT NULL,
-        emergency_contacts_snapshot TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Guardian invites table (invite lifecycle tracking)
-      CREATE TABLE IF NOT EXISTS guardian_invites (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        contact_id INTEGER NOT NULL REFERENCES emergency_contacts(id) ON DELETE CASCADE,
-        invite_token TEXT UNIQUE NOT NULL,
-        status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'accepted', 'declined', 'expired')),
-        sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        accepted_at TIMESTAMP,
-        expires_at TIMESTAMP,
+        role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'system', 'tool')),
+        content TEXT NOT NULL,
+        tool_calls TEXT,
+        tool_call_id TEXT,
+        tokens_used INTEGER DEFAULT 0,
+        source TEXT DEFAULT 'azure_openai',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+      CREATE INDEX IF NOT EXISTS idx_atlas_messages_conversation_id ON atlas_messages(conversation_id);
 
-      -- Weather cache table
-      CREATE TABLE IF NOT EXISTS weather_cache (
-        id SERIAL PRIMARY KEY,
-        destination_id INTEGER REFERENCES destinations(id) ON DELETE SET NULL,
-        location_key TEXT NOT NULL,
-        forecast_json TEXT NOT NULL,
-        fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        expires_at TIMESTAMP NOT NULL,
-        UNIQUE(location_key)
-      );
-
-      -- User usage stats table (unified metered usage)
-      CREATE TABLE IF NOT EXISTS user_usage_stats (
+      -- Atlas usage logs table
+      CREATE TABLE IF NOT EXISTS atlas_usage_logs (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        total_trips INTEGER DEFAULT 0,
-        total_ai_queries INTEGER DEFAULT 0,
-        total_check_ins INTEGER DEFAULT 0,
-        last_active TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id)
-      );
-
-      -- Inbound webhook dedup table
-      CREATE TABLE IF NOT EXISTS webhook_inbound_logs (
-        id SERIAL PRIMARY KEY,
-        provider TEXT NOT NULL,
-        event_id TEXT NOT NULL,
-        payload TEXT,
-        processed_at TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(event_id)
-      );
-
-      -- Travel stats table (aggregated personal stats)
-      CREATE TABLE IF NOT EXISTS travel_stats (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        countries_visited INTEGER DEFAULT 0,
-        cities_visited INTEGER DEFAULT 0,
-        trips_completed INTEGER DEFAULT 0,
-        total_days_abroad INTEGER DEFAULT 0,
-        total_distance_km NUMERIC DEFAULT 0,
-        favourite_region TEXT,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id)
-      );
-
-      -- Safety scores table (destination safety assessments)
-      CREATE TABLE IF NOT EXISTS safety_scores (
-        id SERIAL PRIMARY KEY,
-        destination_id INTEGER NOT NULL REFERENCES destinations(id) ON DELETE CASCADE,
-        overall_score NUMERIC,
-        crime_index NUMERIC,
-        health_risk TEXT,
-        political_stability TEXT,
-        transport_safety TEXT,
-        solo_female_score NUMERIC,
-        assessed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        conversation_id INTEGER REFERENCES atlas_conversations(id) ON DELETE SET NULL,
+        model TEXT,
+        prompt_tokens INTEGER DEFAULT 0,
+        completion_tokens INTEGER DEFAULT 0,
+        total_tokens INTEGER DEFAULT 0,
         source TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        latency_ms INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+      CREATE INDEX IF NOT EXISTS idx_atlas_usage_logs_user_id ON atlas_usage_logs(user_id);
 
       -- Atlas prompt templates table
       CREATE TABLE IF NOT EXISTS atlas_prompt_templates (
         id SERIAL PRIMARY KEY,
         name TEXT UNIQUE NOT NULL,
-        version INTEGER DEFAULT 1,
+        description TEXT,
         system_prompt TEXT NOT NULL,
+        user_prompt_template TEXT,
+        context_keys TEXT DEFAULT '[]',
+        tags TEXT DEFAULT '[]',
         is_active BOOLEAN DEFAULT true,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
-      -- Boarding passes table (linked to transport_segments)
-      CREATE TABLE IF NOT EXISTS boarding_passes (
+      -- Critical event queue for SOS/safety guaranteed delivery
+      CREATE TABLE IF NOT EXISTS critical_event_queue (
         id SERIAL PRIMARY KEY,
-        transport_segment_id INTEGER NOT NULL REFERENCES transport_segments(id) ON DELETE CASCADE,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        raw_barcode TEXT,
-        parsed_data TEXT,
-        image_url TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        event_type TEXT NOT NULL,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        payload TEXT NOT NULL,
+        priority INTEGER DEFAULT 5,
+        status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'processing', 'delivered', 'failed', 'dead_letter')),
+        attempts INTEGER DEFAULT 0,
+        max_attempts INTEGER DEFAULT 5,
+        next_retry_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        processed_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+      CREATE INDEX IF NOT EXISTS idx_critical_event_queue_status ON critical_event_queue(status, next_retry_at);
 
-      -- Destination routes table (inter-destination connections)
-      CREATE TABLE IF NOT EXISTS destination_routes (
+      -- Feature flags table
+      CREATE TABLE IF NOT EXISTS feature_flags (
         id SERIAL PRIMARY KEY,
-        from_destination_id INTEGER NOT NULL REFERENCES destinations(id) ON DELETE CASCADE,
-        to_destination_id INTEGER NOT NULL REFERENCES destinations(id) ON DELETE CASCADE,
-        transport_modes TEXT,
-        avg_duration_hours NUMERIC,
-        avg_cost_usd NUMERIC,
-        notes TEXT,
-        UNIQUE(from_destination_id, to_destination_id)
+        flag_key TEXT UNIQUE NOT NULL,
+        description TEXT,
+        is_enabled BOOLEAN DEFAULT false,
+        enabled_for_tiers TEXT DEFAULT '[]',
+        enabled_for_user_ids TEXT DEFAULT '[]',
+        rollout_percentage INTEGER DEFAULT 0,
+        metadata TEXT DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
@@ -2468,134 +2348,53 @@ async function runMigrations() {
     await markMigration('v027_ai_observability');
   }
 
-  // --- Migration v028: Auth security tables and profile columns ---
-  if (!await hasMigration('v028_auth_security_tables')) {
+  if (!await hasMigration('v028_content_hub')) {
     try {
       await pool.query(`
-        DO $$
-        BEGIN
-          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'pronouns') THEN
-            ALTER TABLE profiles ADD COLUMN pronouns TEXT;
-          END IF;
-          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'deleted_at') THEN
-            ALTER TABLE users ADD COLUMN deleted_at TIMESTAMP;
-          END IF;
-          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'admin_level') THEN
-            ALTER TABLE users ADD COLUMN admin_level TEXT DEFAULT 'support';
-          END IF;
-        END $$;
+        CREATE TABLE IF NOT EXISTS content_guides (
+          id SERIAL PRIMARY KEY,
+          slug TEXT UNIQUE NOT NULL,
+          title TEXT NOT NULL,
+          excerpt TEXT,
+          content TEXT,
+          category TEXT DEFAULT 'general',
+          tags TEXT DEFAULT '[]',
+          destination TEXT,
+          country TEXT,
+          cover_image TEXT,
+          author TEXT DEFAULT 'SoloCompass Team',
+          read_time_minutes INTEGER DEFAULT 5,
+          is_published BOOLEAN DEFAULT true,
+          view_count INTEGER DEFAULT 0,
+          version INTEGER DEFAULT 1,
+          published_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        )
       `);
-      logger.info('[Migration v028] auth security columns added');
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_content_guides_slug ON content_guides(slug)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_content_guides_category ON content_guides(category)`);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS content_tips (
+          id SERIAL PRIMARY KEY,
+          title TEXT NOT NULL,
+          content TEXT NOT NULL,
+          category TEXT DEFAULT 'general',
+          tags TEXT DEFAULT '[]',
+          difficulty TEXT DEFAULT 'beginner' CHECK(difficulty IN ('beginner', 'intermediate', 'advanced')),
+          is_published BOOLEAN DEFAULT true,
+          helpful_count INTEGER DEFAULT 0,
+          version INTEGER DEFAULT 1,
+          published_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      logger.info('[Migration v028] content_guides and content_tips tables created');
     } catch (error) {
       logger.warn('[Migration v028] skipped:', error.message);
     }
-    await markMigration('v028_auth_security_tables');
-  }
-
-  // --- Migration v029: sessions location, quiz travel_persona ---
-  if (!await hasMigration('v029_sessions_location_quiz_persona')) {
-    try {
-      await pool.query(`
-        DO $$
-        BEGIN
-          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'sessions' AND column_name = 'location') THEN
-            ALTER TABLE sessions ADD COLUMN location TEXT;
-          END IF;
-          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quiz_results' AND column_name = 'travel_persona') THEN
-            ALTER TABLE quiz_results ADD COLUMN travel_persona TEXT;
-          END IF;
-        END $$;
-      `);
-      logger.info('[Migration v029] sessions.location and quiz_results.travel_persona columns added');
-    } catch (error) {
-      logger.warn('[Migration v029] skipped:', error.message);
-    }
-    await markMigration('v029_sessions_location_quiz_persona');
-  }
-
-  // --- Migration v030: user_preferences table + onboarding/deletion scheduler columns ---
-  if (!await hasMigration('v030_user_preferences_scheduler_cols')) {
-    try {
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS user_preferences (
-          id SERIAL PRIMARY KEY,
-          user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-          language VARCHAR(10) DEFAULT 'en',
-          currency VARCHAR(10) DEFAULT 'USD',
-          units VARCHAR(10) DEFAULT 'metric' CHECK(units IN ('metric', 'imperial')),
-          timezone VARCHAR(60) DEFAULT 'UTC',
-          date_format VARCHAR(20) DEFAULT 'YYYY-MM-DD',
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE INDEX IF NOT EXISTS idx_user_preferences_user_id ON user_preferences(user_id);
-      `);
-      // Add per-field privacy column to profiles
-      await pool.query(`
-        DO $$
-        BEGIN
-          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'privacy_settings') THEN
-            ALTER TABLE profiles ADD COLUMN privacy_settings JSONB DEFAULT '{}';
-          END IF;
-          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'avatar_thumbnail_url') THEN
-            ALTER TABLE profiles ADD COLUMN avatar_thumbnail_url TEXT;
-          END IF;
-          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'avatar_medium_url') THEN
-            ALTER TABLE profiles ADD COLUMN avatar_medium_url TEXT;
-          END IF;
-        END $$;
-      `);
-      // Add scheduler tracking columns to onboarding_state
-      await pool.query(`
-        DO $$
-        BEGIN
-          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'onboarding_state' AND column_name = 're_engagement_sent') THEN
-            ALTER TABLE onboarding_state ADD COLUMN re_engagement_sent BOOLEAN DEFAULT false;
-          END IF;
-          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'onboarding_state' AND column_name = 're_engagement_sent_at') THEN
-            ALTER TABLE onboarding_state ADD COLUMN re_engagement_sent_at TIMESTAMP;
-          END IF;
-        END $$;
-      `);
-      // Add pre-deletion warning columns to account_deletion_requests
-      await pool.query(`
-        DO $$
-        BEGIN
-          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'account_deletion_requests' AND column_name = 'warning_7d_sent') THEN
-            ALTER TABLE account_deletion_requests ADD COLUMN warning_7d_sent BOOLEAN DEFAULT false;
-          END IF;
-          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'account_deletion_requests' AND column_name = 'warning_3d_sent') THEN
-            ALTER TABLE account_deletion_requests ADD COLUMN warning_3d_sent BOOLEAN DEFAULT false;
-          END IF;
-          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'account_deletion_requests' AND column_name = 'warning_1d_sent') THEN
-            ALTER TABLE account_deletion_requests ADD COLUMN warning_1d_sent BOOLEAN DEFAULT false;
-          END IF;
-        END $$;
-      `);
-      logger.info('[Migration v030] user_preferences table + scheduler columns added');
-    } catch (error) {
-      logger.warn('[Migration v030] skipped:', error.message);
-    }
-    await markMigration('v030_user_preferences_scheduler_cols');
-  }
-
-  // --- Migration v031: rename users.is_verified -> email_verified ---
-  if (!await hasMigration('v031_users_email_verified_rename')) {
-    try {
-      await pool.query(`
-        DO $$
-        BEGIN
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'is_verified') AND
-             NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'email_verified') THEN
-            ALTER TABLE users RENAME COLUMN is_verified TO email_verified;
-          END IF;
-        END $$;
-      `);
-      logger.info('[Migration v031] users.is_verified renamed to email_verified');
-    } catch (error) {
-      logger.warn('[Migration v031] skipped:', error.message);
-    }
-    await markMigration('v031_users_email_verified_rename');
+    await markMigration('v028_content_hub');
   }
 
   logger.info('[Migration] All migrations complete');

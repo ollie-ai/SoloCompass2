@@ -1252,90 +1252,153 @@ async function initializeDatabase() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
-      -- Atlas conversations table
-      CREATE TABLE IF NOT EXISTS atlas_conversations (
+      -- SOS Events
+      CREATE TABLE IF NOT EXISTS sos_events (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        title TEXT,
-        context TEXT DEFAULT '{}',
-        message_count INTEGER DEFAULT 0,
-        last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        trip_id INTEGER REFERENCES trips(id) ON DELETE SET NULL,
+        triggered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        cancelled_at TIMESTAMP,
+        resolved_at TIMESTAMP,
+        status TEXT DEFAULT 'active' CHECK(status IN ('active', 'cancelled', 'resolved', 'acknowledged')),
+        latitude REAL,
+        longitude REAL,
+        address TEXT,
+        message TEXT,
+        trigger_type TEXT DEFAULT 'manual' CHECK(trigger_type IN ('manual', 'missed_checkin', 'auto')),
+        acknowledged_by TEXT,
+        acknowledged_at TIMESTAMP,
+        cancelled_by TEXT DEFAULT 'user',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
-      CREATE INDEX IF NOT EXISTS idx_atlas_conversations_user_id ON atlas_conversations(user_id);
 
-      -- Atlas messages table
-      CREATE TABLE IF NOT EXISTS atlas_messages (
+      -- SOS Notifications
+      CREATE TABLE IF NOT EXISTS sos_notifications (
         id SERIAL PRIMARY KEY,
-        conversation_id INTEGER NOT NULL REFERENCES atlas_conversations(id) ON DELETE CASCADE,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'system', 'tool')),
-        content TEXT NOT NULL,
-        tool_calls TEXT,
-        tool_call_id TEXT,
-        tokens_used INTEGER DEFAULT 0,
-        source TEXT DEFAULT 'azure_openai',
+        sos_event_id INTEGER NOT NULL REFERENCES sos_events(id) ON DELETE CASCADE,
+        contact_id INTEGER REFERENCES emergency_contacts(id) ON DELETE SET NULL,
+        channel TEXT NOT NULL CHECK(channel IN ('sms', 'email', 'push')),
+        status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'sent', 'delivered', 'failed')),
+        sent_at TIMESTAMP,
+        delivered_at TIMESTAMP,
+        error_message TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
-      CREATE INDEX IF NOT EXISTS idx_atlas_messages_conversation_id ON atlas_messages(conversation_id);
 
-      -- Atlas usage logs table
-      CREATE TABLE IF NOT EXISTS atlas_usage_logs (
+      -- Safe Return Plans
+      CREATE TABLE IF NOT EXISTS safe_return_plans (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        conversation_id INTEGER REFERENCES atlas_conversations(id) ON DELETE SET NULL,
-        model TEXT,
-        prompt_tokens INTEGER DEFAULT 0,
-        completion_tokens INTEGER DEFAULT 0,
-        total_tokens INTEGER DEFAULT 0,
-        source TEXT,
-        latency_ms INTEGER,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        trip_id INTEGER REFERENCES trips(id) ON DELETE CASCADE,
+        status TEXT DEFAULT 'draft' CHECK(status IN ('draft', 'active', 'activated', 'completed')),
+        embassy_name TEXT,
+        embassy_address TEXT,
+        embassy_phone TEXT,
+        embassy_email TEXT,
+        hospital_name TEXT,
+        hospital_address TEXT,
+        hospital_phone TEXT,
+        nearest_airport TEXT,
+        airport_code TEXT,
+        flight_back TEXT,
+        flight_back_date TIMESTAMP,
+        accommodation_name TEXT,
+        accommodation_address TEXT,
+        accommodation_phone TEXT,
+        emergency_fund_amount REAL,
+        emergency_fund_currency TEXT DEFAULT 'USD',
+        notes TEXT,
+        activated_at TIMESTAMP,
+        shared_with_guardians BOOLEAN DEFAULT false,
+        offline_cached BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
-      CREATE INDEX IF NOT EXISTS idx_atlas_usage_logs_user_id ON atlas_usage_logs(user_id);
 
-      -- Atlas prompt templates table
-      CREATE TABLE IF NOT EXISTS atlas_prompt_templates (
+      -- Safety Areas (for area safety mapping)
+      CREATE TABLE IF NOT EXISTS safety_areas (
         id SERIAL PRIMARY KEY,
-        name TEXT UNIQUE NOT NULL,
+        destination_id INTEGER REFERENCES destinations(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
         description TEXT,
-        system_prompt TEXT NOT NULL,
-        user_prompt_template TEXT,
-        context_keys TEXT DEFAULT '[]',
-        tags TEXT DEFAULT '[]',
-        is_active BOOLEAN DEFAULT true,
+        polygon TEXT,
+        safety_level TEXT DEFAULT 'moderate' CHECK(safety_level IN ('safe', 'moderate', 'caution', 'avoid')),
+        day_safety TEXT DEFAULT 'moderate' CHECK(day_safety IN ('safe', 'moderate', 'caution', 'avoid')),
+        night_safety TEXT DEFAULT 'caution' CHECK(night_safety IN ('safe', 'moderate', 'caution', 'avoid')),
+        notes TEXT,
+        source TEXT DEFAULT 'admin',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
-      -- Critical event queue for SOS/safety guaranteed delivery
-      CREATE TABLE IF NOT EXISTS critical_event_queue (
+      -- Safety Reports (user-submitted)
+      CREATE TABLE IF NOT EXISTS safety_reports (
         id SERIAL PRIMARY KEY,
-        event_type TEXT NOT NULL,
         user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-        payload TEXT NOT NULL,
-        priority INTEGER DEFAULT 5,
-        status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'processing', 'delivered', 'failed', 'dead_letter')),
-        attempts INTEGER DEFAULT 0,
-        max_attempts INTEGER DEFAULT 5,
-        next_retry_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        processed_at TIMESTAMP,
+        latitude REAL,
+        longitude REAL,
+        address TEXT,
+        report_type TEXT NOT NULL CHECK(report_type IN ('theft', 'harassment', 'unsafe_area', 'scam', 'other')),
+        description TEXT,
+        severity TEXT DEFAULT 'medium' CHECK(severity IN ('low', 'medium', 'high')),
+        validated_count INTEGER DEFAULT 0,
+        invalidated_count INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'validated', 'dismissed')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Guardian Relationships
+      CREATE TABLE IF NOT EXISTS guardian_relationships (
+        id SERIAL PRIMARY KEY,
+        traveller_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        guardian_token TEXT UNIQUE NOT NULL,
+        guardian_email TEXT NOT NULL,
+        guardian_name TEXT,
+        status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'active', 'declined', 'revoked')),
+        permission_view_location BOOLEAN DEFAULT true,
+        permission_receive_alerts BOOLEAN DEFAULT true,
+        permission_view_itinerary BOOLEAN DEFAULT false,
+        trip_id INTEGER REFERENCES trips(id) ON DELETE SET NULL,
+        location_sharing_enabled BOOLEAN DEFAULT false,
+        last_location_lat REAL,
+        last_location_lng REAL,
+        last_location_at TIMESTAMP,
+        invited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        accepted_at TIMESTAMP,
+        revoked_at TIMESTAMP,
+        expires_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
-      CREATE INDEX IF NOT EXISTS idx_critical_event_queue_status ON critical_event_queue(status, next_retry_at);
 
-      -- Feature flags table
-      CREATE TABLE IF NOT EXISTS feature_flags (
+      -- Check-in Confirmations
+      CREATE TABLE IF NOT EXISTS check_in_confirmations (
         id SERIAL PRIMARY KEY,
-        flag_key TEXT UNIQUE NOT NULL,
-        description TEXT,
-        is_enabled BOOLEAN DEFAULT false,
-        enabled_for_tiers TEXT DEFAULT '[]',
-        enabled_for_user_ids TEXT DEFAULT '[]',
-        rollout_percentage INTEGER DEFAULT 0,
-        metadata TEXT DEFAULT '{}',
+        scheduled_check_in_id INTEGER NOT NULL REFERENCES scheduled_check_ins(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        confirmed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        latitude REAL,
+        longitude REAL,
+        address TEXT,
+        message TEXT,
+        snooze_until TIMESTAMP
+      );
+
+      -- Embassies
+      CREATE TABLE IF NOT EXISTS embassies (
+        id SERIAL PRIMARY KEY,
+        country_code TEXT NOT NULL,
+        nationality_code TEXT NOT NULL,
+        embassy_name TEXT NOT NULL,
+        address TEXT,
+        phone TEXT,
+        email TEXT,
+        website TEXT,
+        emergency_phone TEXT,
+        city TEXT,
+        latitude REAL,
+        longitude REAL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -1442,38 +1505,19 @@ async function initializeDatabase() {
       CREATE INDEX IF NOT EXISTS idx_calls_conversation ON buddy_calls(conversation_id);
       CREATE INDEX IF NOT EXISTS idx_calls_status ON buddy_calls(status);
 
-      -- Critical events indexes
-      CREATE INDEX IF NOT EXISTS idx_critical_events_user ON critical_events(user_id);
-      CREATE INDEX IF NOT EXISTS idx_critical_events_status ON critical_events(status);
-
-      -- Trip legs indexes
-      CREATE INDEX IF NOT EXISTS idx_trip_legs_trip ON trip_legs(trip_id);
-
-      -- Transport segments indexes
-      CREATE INDEX IF NOT EXISTS idx_transport_segments_trip ON transport_segments(trip_id);
-      CREATE INDEX IF NOT EXISTS idx_transport_segments_leg ON transport_segments(trip_leg_id);
-
-      -- Journal indexes
-      CREATE INDEX IF NOT EXISTS idx_journal_entries_user ON journal_entries(user_id);
-      CREATE INDEX IF NOT EXISTS idx_journal_entries_trip ON journal_entries(trip_id);
-      CREATE INDEX IF NOT EXISTS idx_journal_photos_entry ON journal_photos(journal_entry_id);
-
-      -- Atlas conversations indexes
-      CREATE INDEX IF NOT EXISTS idx_atlas_conversations_user ON atlas_conversations(user_id);
-
-      -- Weather cache indexes
-      CREATE INDEX IF NOT EXISTS idx_weather_cache_key ON weather_cache(location_key);
-      CREATE INDEX IF NOT EXISTS idx_weather_cache_expires ON weather_cache(expires_at);
-
-      -- Guardian invites indexes
-      CREATE INDEX IF NOT EXISTS idx_guardian_invites_user ON guardian_invites(user_id);
-      CREATE INDEX IF NOT EXISTS idx_guardian_invites_token ON guardian_invites(invite_token);
-
-      -- Safety scores indexes
-      CREATE INDEX IF NOT EXISTS idx_safety_scores_destination ON safety_scores(destination_id);
-
-      -- Webhook inbound logs indexes
-      CREATE INDEX IF NOT EXISTS idx_webhook_inbound_event_id ON webhook_inbound_logs(event_id);
+      -- SOS indexes
+      CREATE INDEX IF NOT EXISTS idx_sos_events_user ON sos_events(user_id);
+      CREATE INDEX IF NOT EXISTS idx_sos_events_status ON sos_events(status);
+      CREATE INDEX IF NOT EXISTS idx_sos_notifications_event ON sos_notifications(sos_event_id);
+      CREATE INDEX IF NOT EXISTS idx_safe_return_plans_user ON safe_return_plans(user_id);
+      CREATE INDEX IF NOT EXISTS idx_safe_return_plans_trip ON safe_return_plans(trip_id);
+      CREATE INDEX IF NOT EXISTS idx_safety_areas_destination ON safety_areas(destination_id);
+      CREATE INDEX IF NOT EXISTS idx_safety_reports_location ON safety_reports(latitude, longitude);
+      CREATE INDEX IF NOT EXISTS idx_guardian_relationships_traveller ON guardian_relationships(traveller_id);
+      CREATE INDEX IF NOT EXISTS idx_guardian_relationships_token ON guardian_relationships(guardian_token);
+      CREATE INDEX IF NOT EXISTS idx_check_in_confirmations_scheduled ON check_in_confirmations(scheduled_check_in_id);
+      CREATE INDEX IF NOT EXISTS idx_embassies_country ON embassies(country_code);
+      CREATE INDEX IF NOT EXISTS idx_embassies_nationality ON embassies(nationality_code);
     `);
 
     // Migration for existing tables: Add status and source to destinations
@@ -2657,6 +2701,52 @@ async function runMigrations() {
   logger.info('[Migration] All migrations complete');
 }
 
+// Seed embassy data for top nationality/destination combinations
+async function seedEmbassies() {
+  const p = getPool();
+  if (!p) return;
+  try {
+    const existing = await p.query('SELECT COUNT(*) as count FROM embassies');
+    if (parseInt(existing.rows[0]?.count || '0') > 0) return; // already seeded
+
+    const embassies = [
+      // UK embassies abroad
+      { country: 'TH', nat: 'GB', name: 'British Embassy Bangkok', city: 'Bangkok', address: '14 Wireless Road, Lumpini, Pathum Wan, Bangkok 10330', phone: '+66 2 305 8333', emergency: '+66 2 305 8333', website: 'https://www.gov.uk/world/organisations/british-embassy-bangkok', email: 'ukinbangkok@fcdo.gov.uk' },
+      { country: 'JP', nat: 'GB', name: 'British Embassy Tokyo', city: 'Tokyo', address: '1 Ichiban-cho, Chiyoda-ku, Tokyo 102-8381', phone: '+81 3 5211 1100', emergency: '+81 3 5211 1100', website: 'https://www.gov.uk/world/organisations/british-embassy-tokyo', email: null },
+      { country: 'FR', nat: 'GB', name: 'British Embassy Paris', city: 'Paris', address: '35 rue du Faubourg St Honoré, 75383 Paris Cedex 08', phone: '+33 1 44 51 31 00', emergency: '+33 1 44 51 31 00', website: 'https://www.gov.uk/world/organisations/british-embassy-paris', email: null },
+      { country: 'ES', nat: 'GB', name: 'British Embassy Madrid', city: 'Madrid', address: 'Calle Fernando el Santo 16, 28010 Madrid', phone: '+34 91 714 6300', emergency: '+34 91 714 6300', website: 'https://www.gov.uk/world/organisations/british-embassy-madrid', email: null },
+      { country: 'IT', nat: 'GB', name: 'British Embassy Rome', city: 'Rome', address: 'Via XX Settembre 80/A, 00187 Rome', phone: '+39 06 4220 0001', emergency: '+39 06 4220 2900', website: 'https://www.gov.uk/world/organisations/british-embassy-rome', email: null },
+      // US embassies abroad
+      { country: 'TH', nat: 'US', name: 'US Embassy Bangkok', city: 'Bangkok', address: '95 Wireless Road, Bangkok 10330', phone: '+66 2 205 4000', emergency: '+66 2 205 4000', website: 'https://th.usembassy.gov', email: 'acsbkk@state.gov' },
+      { country: 'JP', nat: 'US', name: 'US Embassy Tokyo', city: 'Tokyo', address: '1-10-5 Akasaka, Minato-ku, Tokyo 107-8420', phone: '+81 3 3224 5000', emergency: '+81 3 3224 5000', website: 'https://jp.usembassy.gov', email: null },
+      { country: 'FR', nat: 'US', name: 'US Embassy Paris', city: 'Paris', address: '4 avenue Gabriel, 75008 Paris', phone: '+33 1 43 12 22 22', emergency: '+33 1 43 12 22 22', website: 'https://fr.usembassy.gov', email: null },
+      { country: 'ES', nat: 'US', name: 'US Embassy Madrid', city: 'Madrid', address: 'Calle Serrano 75, 28006 Madrid', phone: '+34 91 587 2200', emergency: '+34 91 587 2240', website: 'https://es.usembassy.gov', email: null },
+      { country: 'MX', nat: 'US', name: 'US Embassy Mexico City', city: 'Mexico City', address: 'Paseo de la Reforma 305, Cuauhtémoc, 06500 Mexico City', phone: '+52 55 5080 2000', emergency: '+52 55 5080 2000', website: 'https://mx.usembassy.gov', email: null },
+      // Australian embassies abroad
+      { country: 'TH', nat: 'AU', name: 'Australian Embassy Bangkok', city: 'Bangkok', address: '181 Wireless Road, Lumpini, Bangkok 10330', phone: '+66 2 344 6300', emergency: '+66 2 344 6300', website: 'https://thailand.embassy.gov.au', email: 'consular.bangkok@dfat.gov.au' },
+      { country: 'JP', nat: 'AU', name: 'Australian Embassy Tokyo', city: 'Tokyo', address: '2-1-14 Mita, Minato-ku, Tokyo 108-8361', phone: '+81 3 5232 4111', emergency: '+81 3 5232 4111', website: 'https://japan.embassy.gov.au', email: null },
+      { country: 'ID', nat: 'AU', name: 'Australian Embassy Jakarta', city: 'Jakarta', address: 'Jl. H.R. Rasuna Said Kav. C15-16, Kuningan, Jakarta 12940', phone: '+62 21 2550 5555', emergency: '+62 21 2550 5555', website: 'https://indonesia.embassy.gov.au', email: null },
+      // Canadian embassies abroad
+      { country: 'TH', nat: 'CA', name: 'Canadian Embassy Bangkok', city: 'Bangkok', address: '15th Floor, Abdulrahim Place, 990 Rama IV Road, Bangrak, Bangkok 10500', phone: '+66 2 636 0540', emergency: '+66 2 636 0540', website: 'https://www.canadainternational.gc.ca/thailand-thailande', email: 'bngkk@international.gc.ca' },
+      { country: 'FR', nat: 'CA', name: 'Canadian Embassy Paris', city: 'Paris', address: '35 avenue Montaigne, 75008 Paris', phone: '+33 1 44 43 29 00', emergency: '+33 1 44 43 29 00', website: 'https://www.canadainternational.gc.ca/france', email: null },
+      // New Zealand embassies abroad
+      { country: 'TH', nat: 'NZ', name: 'New Zealand Embassy Bangkok', city: 'Bangkok', address: 'M Thai Tower, All Seasons Place, 87 Wireless Road, Bangkok 10330', phone: '+66 2 254 2530', emergency: '+66 2 254 2530', website: 'https://www.mfat.govt.nz/en/countries-and-regions/south-east-asia/thailand', email: 'nzebangkok@mfat.govt.nz' },
+      { country: 'JP', nat: 'NZ', name: 'New Zealand Embassy Tokyo', city: 'Tokyo', address: '20-40 Kamiyamacho, Shibuya-ku, Tokyo 150-0047', phone: '+81 3 3467 2271', emergency: '+81 3 3467 2271', website: 'https://www.mfat.govt.nz/en/countries-and-regions/north-asia/japan', email: null },
+    ];
+
+    for (const e of embassies) {
+      await p.query(`
+        INSERT INTO embassies (country_code, nationality_code, embassy_name, city, address, phone, emergency_phone, website, email)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `, [e.country, e.nat, e.name, e.city, e.address, e.phone, e.emergency, e.website, e.email]);
+    }
+
+    logger.info(`[DB] Seeded ${embassies.length} embassy records`);
+  } catch (err) {
+    logger.warn('[DB] Embassy seed skipped:', err.message);
+  }
+}
+
 // Auto-initialize sequence
 let isInitialized = false;
 let initPromise = null;
@@ -2702,6 +2792,7 @@ async function init() {
       // 2. Initialize schema and migrations
       await initializeDatabase();
       await runMigrations();
+      await seedEmbassies();
       
       isInitialized = true;
       logger.info('[DB] Database fully initialized');

@@ -10,6 +10,8 @@ import toast from 'react-hot-toast';
 import { User, Shield, Bell, MapPin, Sparkles, Globe, Trash2, AlertTriangle, Download, CreditCard, Check, Crown, Zap, ArrowUpRight, X, Smartphone, Monitor, Lock, KeyRound, Fingerprint, LogOut, ChevronRight, Save, CheckCircle, RotateCcw, ShieldAlert, Clock, Users, Wallet, Mail, MessageSquare, Phone, Info, Eye, ShieldCheck, Camera, Search } from 'lucide-react';
 import SoloIDCard from '../components/SoloIDCard';
 import VerificationModal from '../components/VerificationModal';
+import DataExport from '../components/DataExport';
+import AccountDeletionModal from '../components/AccountDeletionModal';
 import { ACTIVITY_INTERESTS, VIBE_INTERESTS } from '../constants/interests';
 import DashboardShell from '../components/dashboard/DashboardShell';
 import PageHeader from '../components/PageHeader';
@@ -71,6 +73,7 @@ const Settings = () => {
   const [notifPrefs, setNotifPrefs] = useState({ ...defaultNotifPrefs });
   const [savingNotifPrefs, setSavingNotifPrefs] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
+  const [showAccountDeletionModal, setShowAccountDeletionModal] = useState(false);
 
   useEffect(() => {
     if (initialized && user?.id) {
@@ -341,21 +344,17 @@ const Settings = () => {
   };
 
   const handleDeleteAccount = async () => {
-    const confirmed = window.confirm(
-      'ARE YOU SURE? This will permanently delete your SoloCompass account and ALL associated trip data, itineraries, and quiz results. This action CANNOT be undone.'
-    );
-
-    if (!confirmed) return;
-
     setSaving(true);
     try {
-      await api.delete(`/users/${user?.id}`);
+      await api.delete('/account');
       await logout();
       navigate('/');
       import('react-hot-toast').then(toast => toast.default.success('Your account has been deleted.'));
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to delete account');
+    } finally {
       setSaving(false);
+      setShowAccountDeletionModal(false);
     }
   };
 
@@ -363,10 +362,8 @@ const Settings = () => {
   const handleExportData = async () => {
     setExporting(true);
     try {
-      const response = await api.get(`/users/${user?.id}/export`);
-      const data = response.data.data;
-      const json = JSON.stringify(data, null, 2);
-      const blob = new Blob([json], { type: 'application/json' });
+      const response = await api.get('/account/data-export', { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/json' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -1320,13 +1317,7 @@ const Settings = () => {
                       <p className="text-sm text-base-content/80 font-medium mb-4">
                         Your export includes trip data, itinerary, safety settings, and profile information.
                       </p>
-                      <button
-                        onClick={handleExportData}
-                        disabled={exporting}
-                        className="inline-flex items-center gap-2 bg-brand-vibrant text-white shadow-md shadow-brand-vibrant/25 hover:bg-green-600 disabled:opacity-50 rounded-xl font-bold px-5 py-2.5 text-sm transition-all"
-                      >
-                        <Download size={14} /> {exporting ? 'Generating archive...' : 'Download my data archive'}
-                      </button>
+                      <DataExport exporting={exporting} onExport={handleExportData} />
                       <p className="text-xs text-base-content/40 font-medium mt-4">
                         Your data is retained for the duration of your account. After deletion, all data is permanently removed within 30 days.
                       </p>
@@ -1339,8 +1330,23 @@ const Settings = () => {
                         <Eye size={16} className="text-brand-vibrant" /> Profile Privacy Controls
                       </h3>
                     </div>
-                    <div className="p-5">
-                      <PrivacySettingsForm />
+
+                    <p className="text-xs text-base-content/60 font-medium mb-3">
+                      Deleting your account permanently removes your trips, preferences, and associated account data.
+                    </p>
+
+                    <div className="flex flex-col sm:flex-row items-center gap-4 mt-6">
+                      <button
+                        onClick={() => setShowAccountDeletionModal(true)}
+                        disabled={saving}
+                        className="w-full sm:w-auto px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl shadow-lg shadow-red-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-[10px] uppercase tracking-widest"
+                      >
+                        <Trash2 size={14} />
+                        Delete My Account
+                      </button>
+                      <p className="text-[10px] text-base-content/40 font-bold italic">
+                        Wait! Have you downloaded your data archive yet?
+                      </p>
                     </div>
                   </div>
 
@@ -1362,6 +1368,12 @@ const Settings = () => {
           </div>
         </div>
       </div>
+      <AccountDeletionModal
+        isOpen={showAccountDeletionModal}
+        isDeleting={saving}
+        onClose={() => !saving && setShowAccountDeletionModal(false)}
+        onConfirm={handleDeleteAccount}
+      />
     </DashboardShell>
   );
 };

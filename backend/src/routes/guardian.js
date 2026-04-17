@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth.js';
 import { PLAN_TIERS } from '../middleware/paywall.js';
 import { createNotification } from '../services/notificationService.js';
 import { sendEmail } from '../services/resendClient.js';
+import { sendPushNotification } from '../services/pushService.js';
 import logger from '../services/logger.js';
 const router = express.Router();
 
@@ -252,8 +253,28 @@ router.post('/acknowledge/:token', async (req, res) => {
       'guardian_acknowledged',
       'Guardian Confirmed',
       `${acknowledgement.contact_name} has confirmed they are your travel guardian.`,
-      { contactId: acknowledgement.contact_id }
+      { contactId: acknowledgement.contact_id, tripId: acknowledgement.trip_id }
     );
+
+    await createNotification(
+      acknowledgement.user_id,
+      'sos_acknowledged',
+      'SOS Acknowledged',
+      `${acknowledgement.contact_name} acknowledged your emergency alert and is responding.`,
+      { contactId: acknowledgement.contact_id, tripId: acknowledgement.trip_id }
+    );
+
+    await sendPushNotification(acknowledgement.user_id, {
+      title: 'SOS Acknowledged',
+      body: `${acknowledgement.contact_name} acknowledged your emergency alert.`,
+      priority: 'P0',
+      tag: 'sos_acknowledged',
+      data: {
+        type: 'sos_acknowledged',
+        contactId: String(acknowledgement.contact_id || ''),
+        tripId: String(acknowledgement.trip_id || ''),
+      }
+    });
 
     logger.info(`Guardian acknowledgement confirmed: contact ${acknowledgement.contact_id} acknowledged by token`);
 

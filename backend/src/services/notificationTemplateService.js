@@ -405,6 +405,13 @@ const DEFAULT_TEMPLATES = [
     subject: '',
     body: '✅ {{travelerName}} has checked in safely from {{destination}}. Location: {{location}}. All clear!',
     variables: ['travelerName', 'destination', 'location']
+  },
+  {
+    type: 'sms',
+    notification_type: 'sos_acknowledged',
+    subject: '',
+    body: '✅ SOS acknowledged by {{guardianName}} for trip to {{destination}}. Help is on the way.',
+    variables: ['guardianName', 'destination']
   }
 ];
 
@@ -423,21 +430,18 @@ const TEMPLATE_PREVIEW_VARS = {
   payment_failed: { name: 'Alex', amount: '$9.99', failureReason: 'Card expired', paymentUrl: 'https://solocompass.app/settings/billing' },
   checkin_reminder: { name: 'Alex', destination: 'Tokyo, Japan', checkinUrl: 'https://solocompass.app/safety/checkin' },
   sos_alert: { travelerName: 'Alex Johnson', destination: 'Tokyo, Japan', lastLocation: 'Shinjuku Station', emergencyContact: 'Sarah' },
-  safe_checkin_sent: { travelerName: 'Alex Johnson', destination: 'Tokyo, Japan', location: 'Shibuya, Tokyo' }
+  safe_checkin_sent: { travelerName: 'Alex Johnson', destination: 'Tokyo, Japan', location: 'Shibuya, Tokyo' },
+  sos_acknowledged: { guardianName: 'Sarah', destination: 'Tokyo, Japan' }
 };
 
 async function initializeDefaultTemplates() {
   try {
-    const existingCount = await db.get('SELECT COUNT(*) as count FROM notification_templates');
-    if (existingCount && existingCount.count > 0) {
-      logger.info('[NotificationTemplateService] Templates already exist, skipping initialization');
-      return;
-    }
-
-    logger.info('[NotificationTemplateService] Initializing default templates...');
+    logger.info('[NotificationTemplateService] Ensuring default templates exist...');
     for (const template of DEFAULT_TEMPLATES) {
       await db.run(
-        `INSERT INTO notification_templates (type, notification_type, subject, body, variables, is_active) VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO notification_templates (type, notification_type, subject, body, variables, is_active)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT (notification_type, type) DO NOTHING`,
         template.type,
         template.notification_type,
         template.subject || '',
@@ -446,7 +450,7 @@ async function initializeDefaultTemplates() {
         true
       );
     }
-    logger.info('[NotificationTemplateService] Default templates initialized');
+    logger.info('[NotificationTemplateService] Default templates ensured');
   } catch (error) {
     logger.error('[NotificationTemplateService] Failed to initialize templates:', error.message);
   }

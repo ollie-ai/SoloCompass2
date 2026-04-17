@@ -1,111 +1,151 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Zap, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Zap, TrendingUp, AlertCircle, ArrowUpRight, MessageSquare, Globe, Sparkles } from 'lucide-react';
 import api from '../lib/api';
+import Skeleton from './Skeleton';
 
-const PLAN_LABELS = { explorer: 'Explorer', guardian: 'Guardian', navigator: 'Navigator' };
-
-export default function TokenDashboard() {
+/**
+ * TokenDashboard — AI usage stats card with progress bars and upgrade prompt.
+ *
+ * Shows the user's current AI token / request usage against their plan limit.
+ * Wired into the Settings billing tab.
+ *
+ * Props:
+ *   className – extra classes for the outer container
+ *   onUpgrade  – optional callback fired when the "Upgrade" button is clicked
+ */
+export default function TokenDashboard({ className = '', onUpgrade }) {
   const [usage, setUsage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    api.get('/ai/usage')
-      .then(r => setUsage(r.data?.data || r.data))
-      .catch(() => setError('Unable to load usage data'))
-      .finally(() => setLoading(false));
+    const fetchUsage = async () => {
+      try {
+        const res = await api.get('/ai/usage');
+        setUsage(res.data.data || res.data);
+      } catch (err) {
+        console.error('[TokenDashboard] Failed to fetch AI usage:', err);
+        setError('Could not load AI usage data.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsage();
   }, []);
 
   if (loading) {
     return (
-      <div className="card bg-base-100 border border-base-200 p-5 animate-pulse">
-        <div className="h-4 bg-base-200 rounded w-1/3 mb-4" />
-        <div className="h-3 bg-base-200 rounded w-full mb-2" />
-        <div className="h-3 bg-base-200 rounded w-2/3" />
+      <div className={`glass-card p-6 rounded-2xl border border-base-300/50 space-y-4 ${className}`}>
+        <Skeleton className="h-5 w-40 mb-2" />
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-4/5" />
       </div>
     );
   }
 
-  if (error || !usage) {
+  if (error) {
     return (
-      <div className="card bg-base-100 border border-base-200 p-5">
-        <p className="text-sm text-base-content/50">{error || 'No usage data available'}</p>
+      <div className={`glass-card p-6 rounded-2xl border border-error/20 flex items-start gap-3 ${className}`}>
+        <AlertCircle size={18} className="text-error mt-0.5 shrink-0" />
+        <p className="text-sm text-base-content/60">{error}</p>
       </div>
     );
   }
 
-  const chatUsed = usage.chat ?? 0;
-  const chatLimit = usage.limits?.chat ?? (usage.plan === 'explorer' ? 5 : Infinity);
-  const itinUsed = usage.itinerary ?? 0;
-  const itinLimit = usage.limits?.itinerary ?? (usage.plan === 'explorer' ? 1 : Infinity);
-  const isUnlimited = usage.plan !== 'explorer';
+  const metrics = [
+    {
+      label: 'AI Chat Messages',
+      icon: MessageSquare,
+      used: usage?.chat_requests_used ?? 0,
+      limit: usage?.chat_requests_limit ?? null,
+      color: 'bg-brand-vibrant',
+    },
+    {
+      label: 'Translation Requests',
+      icon: Globe,
+      used: usage?.translation_requests_used ?? 0,
+      limit: usage?.translation_requests_limit ?? null,
+      color: 'bg-indigo-500',
+    },
+    {
+      label: 'AI Itinerary Generations',
+      icon: Sparkles,
+      used: usage?.itinerary_generations_used ?? 0,
+      limit: usage?.itinerary_generations_limit ?? null,
+      color: 'bg-amber-500',
+    },
+  ];
 
-  const chatPct = isUnlimited ? 0 : Math.min(100, (chatUsed / chatLimit) * 100);
-  const itinPct = isUnlimited ? 0 : Math.min(100, (itinUsed / itinLimit) * 100);
-  const nearLimit = !isUnlimited && (chatPct >= 80 || itinPct >= 80);
+  const isAtLimit = metrics.some((m) => m.limit !== null && m.used >= m.limit);
 
   return (
-    <div className="card bg-base-100 border border-base-200 p-5 space-y-4">
+    <div className={`glass-card p-6 rounded-2xl border border-base-300/50 space-y-5 ${className}`}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Sparkles size={16} className="text-brand-vibrant" />
-          <span className="text-sm font-bold text-base-content">AI Usage</span>
+          <div className="w-8 h-8 rounded-xl bg-brand-vibrant/10 flex items-center justify-center">
+            <Zap size={16} className="text-brand-vibrant" />
+          </div>
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-widest text-base-content/40">AI Usage</p>
+            <p className="text-sm font-black text-base-content">This Month</p>
+          </div>
         </div>
-        <span className="badge badge-sm badge-outline">{PLAN_LABELS[usage.plan] ?? usage.plan}</span>
+        {usage?.reset_date && (
+          <p className="text-[11px] font-bold text-base-content/40">
+            Resets {new Date(usage.reset_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+          </p>
+        )}
       </div>
 
-      {isUnlimited ? (
-        <div className="flex items-center gap-2 text-sm text-base-content/60">
-          <Zap size={14} className="text-emerald-500" />
-          Unlimited AI on your plan
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <div>
-            <div className="flex justify-between text-xs text-base-content/60 mb-1">
-              <span>Chat messages</span>
-              <span>{chatUsed} / {chatLimit}</span>
+      <div className="space-y-4">
+        {metrics.map(({ label, icon: Icon, used, limit, color }) => {
+          const pct = limit ? Math.min((used / limit) * 100, 100) : null;
+          const nearLimit = pct !== null && pct >= 80;
+          return (
+            <div key={label} className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Icon size={13} className="text-base-content/40" />
+                  <p className="text-xs font-bold text-base-content/70">{label}</p>
+                </div>
+                <p className={`text-xs font-black ${nearLimit ? 'text-warning' : 'text-base-content/50'}`}>
+                  {used.toLocaleString()}{limit ? ` / ${limit.toLocaleString()}` : ''}
+                </p>
+              </div>
+              {pct !== null ? (
+                <div className="w-full bg-base-200 rounded-full h-1.5">
+                  <div
+                    className={`h-1.5 rounded-full transition-all ${nearLimit ? 'bg-warning' : color}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              ) : (
+                <div className="w-full bg-base-200 rounded-full h-1.5">
+                  <div className={`h-1.5 rounded-full ${color} opacity-30`} style={{ width: '100%' }} />
+                </div>
+              )}
             </div>
-            <div className="w-full bg-base-200 rounded-full h-1.5">
-              <div
-                className={`h-1.5 rounded-full transition-all ${chatPct >= 80 ? 'bg-warning' : 'bg-brand-vibrant'}`}
-                style={{ width: `${chatPct}%` }}
-              />
-            </div>
-          </div>
-          <div>
-            <div className="flex justify-between text-xs text-base-content/60 mb-1">
-              <span>Itineraries</span>
-              <span>{itinUsed} / {itinLimit}</span>
-            </div>
-            <div className="w-full bg-base-200 rounded-full h-1.5">
-              <div
-                className={`h-1.5 rounded-full transition-all ${itinPct >= 80 ? 'bg-warning' : 'bg-brand-vibrant'}`}
-                style={{ width: `${itinPct}%` }}
-              />
-            </div>
-          </div>
+          );
+        })}
+      </div>
 
-          {nearLimit && (
-            <div className="flex items-start gap-2 p-3 rounded-lg bg-warning/10 border border-warning/20">
-              <AlertTriangle size={14} className="text-warning mt-0.5 shrink-0" />
-              <p className="text-xs text-base-content/70">
-                You're nearing your monthly AI limit.{' '}
-                <a href="/settings?tab=billing" className="underline font-semibold">Upgrade</a> for unlimited access.
-              </p>
-            </div>
-          )}
+      {isAtLimit && onUpgrade && (
+        <div className="pt-2 border-t border-base-300/50">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-warning">
+              <TrendingUp size={12} className="inline mr-1" />
+              You've reached your plan limit
+            </p>
+            <button
+              onClick={onUpgrade}
+              className="flex items-center gap-1 text-[11px] font-black text-brand-vibrant hover:underline"
+            >
+              Upgrade <ArrowUpRight size={12} />
+            </button>
+          </div>
         </div>
-      )}
-
-      {usage.plan === 'explorer' && (
-        <a
-          href="/settings?tab=billing"
-          className="flex items-center gap-2 text-xs text-brand-vibrant font-semibold hover:underline"
-        >
-          <TrendingUp size={13} />
-          Upgrade for unlimited AI
-        </a>
       )}
     </div>
   );

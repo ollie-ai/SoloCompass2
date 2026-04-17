@@ -207,6 +207,7 @@ async function initializeDatabase() {
         password TEXT NOT NULL,
         name TEXT,
         role TEXT DEFAULT 'user' CHECK(role IN ('user', 'viewer', 'admin')),
+        is_2fa_enabled BOOLEAN DEFAULT false,
         is_premium BOOLEAN DEFAULT false,
         is_flagged BOOLEAN DEFAULT false,
         subscription_tier TEXT DEFAULT 'free',
@@ -272,87 +273,40 @@ async function initializeDatabase() {
       CREATE INDEX IF NOT EXISTS idx_sessions_last_activity ON sessions(last_activity);
       CREATE INDEX IF NOT EXISTS idx_sessions_refresh_token ON sessions(refresh_token);
 
-      -- Login attempts table for per-IP audit trail
-      CREATE TABLE IF NOT EXISTS login_attempts (
+      -- GDPR consent tracking
+      CREATE TABLE IF NOT EXISTS user_consents (
         id SERIAL PRIMARY KEY,
-        ip_address TEXT NOT NULL,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        consent_type TEXT NOT NULL,
+        consent_status TEXT NOT NULL CHECK(consent_status IN ('granted', 'denied', 'withdrawn')),
+        source TEXT DEFAULT 'web_app',
+        preferences JSONB,
+        ip_address TEXT,
+        user_agent TEXT,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        withdrawn_at TIMESTAMPTZ
+      );
+      CREATE INDEX IF NOT EXISTS idx_user_consents_user_type_created ON user_consents(user_id, consent_type, created_at DESC);
+
+      -- Support tickets
+      CREATE TABLE IF NOT EXISTS support_tickets (
+        id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-        email TEXT,
-        success BOOLEAN NOT NULL DEFAULT false,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        subject TEXT NOT NULL,
+        message TEXT NOT NULL,
+        category TEXT DEFAULT 'general',
+        status TEXT DEFAULT 'open' CHECK(status IN ('open', 'in_progress', 'escalated', 'resolved', 'closed')),
+        priority TEXT DEFAULT 'normal' CHECK(priority IN ('low', 'normal', 'high', 'urgent')),
+        is_emergency BOOLEAN DEFAULT false,
+        sla_due_at TIMESTAMPTZ,
+        assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        metadata JSONB,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        resolved_at TIMESTAMPTZ
       );
-      CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip_address);
-      CREATE INDEX IF NOT EXISTS idx_login_attempts_user_id ON login_attempts(user_id);
-
-      -- Password reset tokens (separate table)
-      CREATE TABLE IF NOT EXISTS password_reset_tokens (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        token TEXT NOT NULL UNIQUE,
-        expires_at TIMESTAMP NOT NULL,
-        used BOOLEAN DEFAULT false,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token);
-      CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
-
-      -- Email verification tokens (separate table)
-      CREATE TABLE IF NOT EXISTS email_verification_tokens (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        token TEXT NOT NULL UNIQUE,
-        expires_at TIMESTAMP NOT NULL,
-        used BOOLEAN DEFAULT false,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_token ON email_verification_tokens(token);
-
-      -- Magic link tokens
-      CREATE TABLE IF NOT EXISTS magic_link_tokens (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        token TEXT NOT NULL UNIQUE,
-        expires_at TIMESTAMP NOT NULL,
-        used BOOLEAN DEFAULT false,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE INDEX IF NOT EXISTS idx_magic_link_tokens_token ON magic_link_tokens(token);
-
-      -- 2FA table
-      CREATE TABLE IF NOT EXISTS user_2fa (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        secret TEXT NOT NULL,
-        backup_codes TEXT NOT NULL,
-        enabled BOOLEAN DEFAULT false,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Account deletion requests
-      CREATE TABLE IF NOT EXISTS account_deletion_requests (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'anonymised', 'purged')),
-        scheduled_purge_date TIMESTAMP NOT NULL,
-        reason TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE INDEX IF NOT EXISTS idx_account_deletion_requests_user_id ON account_deletion_requests(user_id);
-      CREATE INDEX IF NOT EXISTS idx_account_deletion_requests_status ON account_deletion_requests(status);
-
-      -- Onboarding state
-      CREATE TABLE IF NOT EXISTS onboarding_state (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        current_step INTEGER DEFAULT 1,
-        completed_steps TEXT DEFAULT '[]',
-        skipped_steps TEXT DEFAULT '[]',
-        completed BOOLEAN DEFAULT false,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+      CREATE INDEX IF NOT EXISTS idx_support_tickets_status_priority ON support_tickets(status, priority, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_support_tickets_emergency ON support_tickets(is_emergency, created_at DESC);
 
       -- Categories table
       CREATE TABLE IF NOT EXISTS categories (
@@ -2383,23 +2337,156 @@ async function runMigrations() {
     await markMigration('v027_ai_observability');
   }
 
-  // --- Migration v028: Trip polish schema additions ---
-  if (!await hasMigration('v028_trip_polish_schema')) {
+  // --- Migration v028: P0 security + consent + support tables ---
+  if (!await hasMigration('v028_p0_security_consent_support')) {
     try {
-      await pool.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS receipt_url TEXT`);
-      await pool.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS merchant TEXT`);
-      await pool.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS ocr_data TEXT`);
-      await pool.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS split_with_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`);
-      await pool.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS split_ratio NUMERIC DEFAULT 0.5`);
-      await pool.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS is_recurring BOOLEAN DEFAULT false`);
-      await pool.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS recurring_frequency TEXT`);
-      await pool.query(`CREATE INDEX IF NOT EXISTS idx_expenses_trip_user ON expenses(trip_id, user_id)`);
-      await pool.query(`CREATE INDEX IF NOT EXISTS idx_journal_shares_share_id ON journal_shares(share_id)`);
-      logger.info('[Migration v028] trip polish schema applied');
+      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_2fa_enabled BOOLEAN DEFAULT false`);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS user_consents (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          consent_type TEXT NOT NULL,
+          consent_status TEXT NOT NULL CHECK(consent_status IN ('granted', 'denied', 'withdrawn')),
+          source TEXT DEFAULT 'web_app',
+          preferences JSONB,
+          ip_address TEXT,
+          user_agent TEXT,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          withdrawn_at TIMESTAMPTZ
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_consents_user_type_created ON user_consents(user_id, consent_type, created_at DESC)`);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS support_tickets (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          subject TEXT NOT NULL,
+          message TEXT NOT NULL,
+          category TEXT DEFAULT 'general',
+          status TEXT DEFAULT 'open' CHECK(status IN ('open', 'in_progress', 'escalated', 'resolved', 'closed')),
+          priority TEXT DEFAULT 'normal' CHECK(priority IN ('low', 'normal', 'high', 'urgent')),
+          is_emergency BOOLEAN DEFAULT false,
+          sla_due_at TIMESTAMPTZ,
+          assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          metadata JSONB,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          resolved_at TIMESTAMPTZ
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_support_tickets_status_priority ON support_tickets(status, priority, created_at DESC)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_support_tickets_emergency ON support_tickets(is_emergency, created_at DESC)`);
+      logger.info('[Migration v028] P0 security/consent/support schema applied');
     } catch (error) {
       logger.warn('[Migration v028] skipped:', error.message);
     }
-    await markMigration('v028_trip_polish_schema');
+    await markMigration('v028_p0_security_consent_support');
+  }
+
+  // --- Migration v029: reports, faq_articles, onboarding_progress ---
+  if (!await hasMigration('v029_reports_faq_onboarding')) {
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS reports (
+          id SERIAL PRIMARY KEY,
+          reporter_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          reported_entity_type TEXT NOT NULL CHECK(reported_entity_type IN ('user', 'trip', 'destination', 'review', 'content')),
+          entity_id INTEGER NOT NULL,
+          reason TEXT NOT NULL,
+          details TEXT,
+          status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'under_review', 'resolved', 'dismissed')),
+          resolution_note TEXT,
+          reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          reviewed_at TIMESTAMPTZ,
+          metadata JSONB,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status, created_at DESC)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_reports_entity ON reports(reported_entity_type, entity_id)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_reports_reporter ON reports(reporter_id)`);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS faq_articles (
+          id SERIAL PRIMARY KEY,
+          title TEXT NOT NULL,
+          content TEXT NOT NULL,
+          category TEXT NOT NULL,
+          display_order INTEGER DEFAULT 0,
+          active BOOLEAN DEFAULT true,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_faq_articles_category_order ON faq_articles(category, display_order)`);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS onboarding_progress (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          step TEXT NOT NULL,
+          completed_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          metadata JSONB,
+          UNIQUE(user_id, step)
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_onboarding_user ON onboarding_progress(user_id)`);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS changelog_entries (
+          id SERIAL PRIMARY KEY,
+          version TEXT NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT,
+          type TEXT DEFAULT 'feature' CHECK(type IN ('feature', 'improvement', 'fix', 'security', 'breaking')),
+          published BOOLEAN DEFAULT false,
+          published_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_changelog_published ON changelog_entries(published, published_at DESC)`);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS ticket_ratings (
+          id SERIAL PRIMARY KEY,
+          ticket_id INTEGER NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+          user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),
+          comment TEXT,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS feature_requests (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          title TEXT NOT NULL,
+          description TEXT,
+          status TEXT DEFAULT 'submitted' CHECK(status IN ('submitted', 'under_review', 'planned', 'in_progress', 'done', 'declined')),
+          votes INTEGER DEFAULT 1,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_feature_requests_status ON feature_requests(status, votes DESC)`);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS waitlist_entries (
+          id SERIAL PRIMARY KEY,
+          email TEXT NOT NULL,
+          feature TEXT,
+          user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(email, feature)
+        )
+      `);
+
+      logger.info('[Migration v029] reports/faq/onboarding/changelog/ratings/feature_requests tables created');
+    } catch (error) {
+      logger.warn('[Migration v029] skipped:', error.message);
+    }
+    await markMigration('v029_reports_faq_onboarding');
   }
 
   logger.info('[Migration] All migrations complete');

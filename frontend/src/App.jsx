@@ -70,10 +70,8 @@ const TripItineraryPage = lazy(() => import('./pages/TripItineraryPage'));
 const TripPackingPage = lazy(() => import('./pages/TripPackingPage'));
 const TripSharePage = lazy(() => import('./pages/TripSharePage'));
 const BottomNav = lazy(() => import('./components/BottomNav'));
-const Journal = lazy(() => import('./pages/Journal'));
-const Budget = lazy(() => import('./pages/Budget'));
-const Guides = lazy(() => import('./pages/Guides'));
-const Tips = lazy(() => import('./pages/Tips'));
+const FAQ = lazy(() => import('./pages/FAQ'));
+const Changelog = lazy(() => import('./pages/Changelog'));
 
 function LoadingFallback() {
   return (
@@ -503,6 +501,8 @@ function App() {
             <Route path="/partnerships" element={<Partnerships />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/about" element={<About />} />
+            <Route path="/faq" element={<FAQ />} />
+            <Route path="/changelog" element={<Changelog />} />
             <Route path="/guardian/acknowledge/:token" element={<GuardianAcknowledge />} />
             <Route path="/guardian/decline/:token" element={<GuardianDecline />} />
             <Route path="/trips/shared/:shareCode" element={<SharedTrip />} />

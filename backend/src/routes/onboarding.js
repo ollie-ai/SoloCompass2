@@ -1,133 +1,110 @@
 import express from 'express';
+import { body, validationResult } from 'express-validator';
 import rateLimit from 'express-rate-limit';
-import { authenticate } from '../middleware/auth.js';
 import db from '../db.js';
 import logger from '../services/logger.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
+
+const ONBOARDING_STEPS = ['profile', 'quiz', 'first_trip', 'safety_setup', 'emergency_contacts', 'tour_complete'];
 
 const onboardingLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, error: { code: 'TOO_MANY_REQUESTS', message: 'Too many requests, please try again later' } },
 });
 
-// GET /api/onboarding/state - get current onboarding state
-router.get('/state', onboardingLimiter, authenticate, async (req, res) => {
+/**
+ * GET /api/onboarding/status
+ * Return completed steps and overall progress for the authenticated user
+ */
+router.get('/status', onboardingLimiter, requireAuth, async (req, res) => {
   try {
-    const userId = req.user.userId;
-    let state = await db.get('SELECT * FROM onboarding_state WHERE user_id = ?', userId);
-    if (!state) {
-      await db.run('INSERT INTO onboarding_state (user_id) VALUES (?)', userId);
-      state = { user_id: userId, current_step: 1, completed_steps: '[]', skipped_steps: '[]', completed: false };
-    }
+    const rows = await db.all(
+      'SELECT step, completed_at, metadata FROM onboarding_progress WHERE user_id = ? ORDER BY completed_at ASC',
+      req.userId
+    );
+
+    const completedSteps = (rows || []).map((r) => r.step);
+    const totalSteps = ONBOARDING_STEPS.length;
+    const completedCount = ONBOARDING_STEPS.filter((s) => completedSteps.includes(s)).length;
+    const completionPercent = Math.round((completedCount / totalSteps) * 100);
+    const isComplete = completedCount === totalSteps;
+
+    const stepStatus = ONBOARDING_STEPS.map((step) => {
+      const row = (rows || []).find((r) => r.step === step);
+      return { step, completed: !!row, completedAt: row?.completed_at || null };
+    });
+
     res.json({
       success: true,
       data: {
-        currentStep: state.current_step,
-        completedSteps: JSON.parse(state.completed_steps || '[]'),
-        skippedSteps: JSON.parse(state.skipped_steps || '[]'),
-        completed: state.completed,
+        completionPercent,
+        isComplete,
+        completedSteps,
+        steps: stepStatus,
+        totalSteps,
+        completedCount,
       }
     });
   } catch (error) {
-    logger.error(`[Onboarding] Get state failed: ${error.message}`);
-    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } });
+    logger.error(`[Onboarding] Failed to get status: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Failed to get onboarding status' });
   }
 });
 
-// POST /api/onboarding/step/:step/complete - mark a step complete
-router.post('/step/:step/complete', onboardingLimiter, authenticate, async (req, res) => {
+/**
+ * POST /api/onboarding/complete
+ * Mark an onboarding step as completed
+ */
+router.post('/complete', onboardingLimiter, requireAuth, [
+  body('step').isIn(ONBOARDING_STEPS).withMessage(`Step must be one of: ${ONBOARDING_STEPS.join(', ')}`),
+  body('metadata').optional().isObject(),
+], async (req, res) => {
   try {
-    const userId = req.user.userId;
-    const step = parseInt(req.params.step);
-    if (isNaN(step) || step < 1 || step > 8) {
-      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid step number' } });
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    let state = await db.get('SELECT * FROM onboarding_state WHERE user_id = ?', userId);
-    if (!state) {
-      await db.run('INSERT INTO onboarding_state (user_id) VALUES (?)', userId);
-      state = { user_id: userId, current_step: 1, completed_steps: '[]', skipped_steps: '[]', completed: false };
-    }
-
-    const completedSteps = JSON.parse(state.completed_steps || '[]');
-    if (!completedSteps.includes(step)) completedSteps.push(step);
-
-    const nextStep = step < 8 ? step + 1 : step;
-    const isCompleted = completedSteps.length >= 8 || step === 8;
+    const { step, metadata = {} } = req.body;
 
     await db.run(
-      'UPDATE onboarding_state SET current_step = ?, completed_steps = ?, completed = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?',
-      nextStep, JSON.stringify(completedSteps), isCompleted, userId
+      `INSERT INTO onboarding_progress (user_id, step, metadata)
+       VALUES (?, ?, ?::jsonb)
+       ON CONFLICT (user_id, step) DO NOTHING`,
+      req.userId, step, JSON.stringify(metadata)
     );
 
-    // If step 3, save profile basics
-    if (step === 3 && req.body && Object.keys(req.body).length > 0) {
-      const { name, display_name, pronouns, avatar_url } = req.body;
-      if (name) await db.run('UPDATE users SET name = ? WHERE id = ?', name, userId);
-      const profileUpdates = {};
-      if (display_name) profileUpdates.display_name = display_name;
-      if (pronouns) profileUpdates.pronouns = pronouns;
-      if (avatar_url) profileUpdates.avatar_url = avatar_url;
-      if (Object.keys(profileUpdates).length > 0) {
-        const setParts = Object.keys(profileUpdates).map(k => `${k} = ?`).join(', ');
-        await db.run(`UPDATE profiles SET ${setParts}, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`, ...Object.values(profileUpdates), userId);
-      }
-    }
-
-    res.json({ success: true, data: { currentStep: nextStep, completed: isCompleted } });
-  } catch (error) {
-    logger.error(`[Onboarding] Complete step failed: ${error.message}`);
-    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } });
-  }
-});
-
-// POST /api/onboarding/step/:step/skip
-router.post('/step/:step/skip', onboardingLimiter, authenticate, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const step = parseInt(req.params.step);
-    if (isNaN(step) || step < 1 || step > 8) {
-      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid step number' } });
-    }
-
-    let state = await db.get('SELECT * FROM onboarding_state WHERE user_id = ?', userId);
-    if (!state) {
-      await db.run('INSERT INTO onboarding_state (user_id) VALUES (?)', userId);
-      state = { user_id: userId, current_step: 1, completed_steps: '[]', skipped_steps: '[]', completed: false };
-    }
-
-    const skippedSteps = JSON.parse(state.skipped_steps || '[]');
-    if (!skippedSteps.includes(step)) skippedSteps.push(step);
-    const nextStep = step < 8 ? step + 1 : step;
-
-    await db.run(
-      'UPDATE onboarding_state SET current_step = ?, skipped_steps = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?',
-      nextStep, JSON.stringify(skippedSteps), userId
+    // Fetch updated status
+    const rows = await db.all(
+      'SELECT step, completed_at FROM onboarding_progress WHERE user_id = ? ORDER BY completed_at ASC',
+      req.userId
     );
 
-    res.json({ success: true, data: { currentStep: nextStep } });
-  } catch (error) {
-    logger.error(`[Onboarding] Skip step failed: ${error.message}`);
-    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } });
-  }
-});
+    const completedSteps = (rows || []).map((r) => r.step);
+    const completedCount = ONBOARDING_STEPS.filter((s) => completedSteps.includes(s)).length;
+    const completionPercent = Math.round((completedCount / ONBOARDING_STEPS.length) * 100);
+    const isComplete = completedCount === ONBOARDING_STEPS.length;
 
-// POST /api/onboarding/complete
-router.post('/complete', onboardingLimiter, authenticate, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    await db.run(
-      'UPDATE onboarding_state SET completed = true, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?',
-      userId
-    );
-    res.json({ success: true, data: { message: 'Onboarding complete!' } });
+    if (isComplete) {
+      await db.run(
+        'INSERT INTO events (user_id, event_name, event_data) VALUES (?, ?, ?)',
+        req.userId, 'onboarding_completed', JSON.stringify({ completedAt: new Date().toISOString() })
+      );
+    }
+
+    logger.info(`[Onboarding] User ${req.userId} completed step: ${step}`);
+
+    res.json({
+      success: true,
+      data: { step, completedSteps, completionPercent, isComplete }
+    });
   } catch (error) {
-    logger.error(`[Onboarding] Complete failed: ${error.message}`);
-    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } });
+    logger.error(`[Onboarding] Failed to complete step: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Failed to mark onboarding step complete' });
   }
 });
 

@@ -2,9 +2,9 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import rateLimit from 'express-rate-limit';
-import multer from 'multer';
 import db from '../db.js';
-import { requireAuth, requireAdmin, authenticate } from '../middleware/auth.js';
+import { requireAuth, requireAdmin } from '../middleware/auth.js';
+import { requireFeature, FEATURES } from '../middleware/paywall.js';
 import { sanitizeAll } from '../middleware/validate.js';
 import { requireFeature, FEATURES } from '../middleware/paywall.js';
 import { stripe } from '../services/stripe.js';
@@ -40,21 +40,11 @@ async function resizeAvatar(buffer, size) {
 
 const router = express.Router();
 
-const apiLimiter = rateLimit({
+const privacyActionLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 40,
   standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, error: { code: 'TOO_MANY_REQUESTS', message: 'Too many requests, please try again later' } },
-});
-
-// Stricter rate limiter for upload/export operations
-const uploadLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, error: { code: 'TOO_MANY_REQUESTS', message: 'Too many requests, please try again later' } },
+  legacyHeaders: false
 });
 
 // Whitelist of allowed profile fields
@@ -215,6 +205,88 @@ router.get('/me', requireAuth, async (req, res) => {
   }
 });
 
+router.get('/me/consent', privacyActionLimiter, requireAuth, async (req, res) => {
+  try {
+    const rows = await db.all(`
+      SELECT DISTINCT ON (consent_type)
+        consent_type, consent_status, source, preferences, created_at, withdrawn_at
+      FROM user_consents
+      WHERE user_id = ?
+      ORDER BY consent_type, created_at DESC
+    `, req.userId);
+
+    const consent = (rows || []).reduce((acc, row) => {
+      acc[row.consent_type] = {
+        status: row.consent_status,
+        source: row.source,
+        preferences: row.preferences,
+        updatedAt: row.created_at,
+        withdrawnAt: row.withdrawn_at
+      };
+      return acc;
+    }, {});
+
+    res.json({ success: true, data: { consent } });
+  } catch (error) {
+    logger.error(`[Users] Failed to fetch consent: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch consent preferences' }
+    });
+  }
+});
+
+router.post('/me/consent', privacyActionLimiter, requireAuth, async (req, res) => {
+  try {
+    const { consentType, status, source = 'web_app', preferences = null } = req.body || {};
+    const allowedTypes = ['data_processing', 'cookies'];
+    const allowedStatuses = ['granted', 'denied', 'withdrawn'];
+
+    if (!allowedTypes.includes(consentType)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_CONSENT_TYPE', message: 'Invalid consent type' }
+      });
+    }
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_CONSENT_STATUS', message: 'Invalid consent status' }
+      });
+    }
+
+    const withdrawnAt = status === 'withdrawn' ? new Date().toISOString() : null;
+    const ipAddress = (req.headers['x-forwarded-for']?.split(',')?.[0] || req.ip || '').replace(/^::ffff:/, '');
+
+    const result = await db.run(
+      `INSERT INTO user_consents (user_id, consent_type, consent_status, source, preferences, ip_address, user_agent, withdrawn_at)
+       VALUES (?, ?, ?, ?, ?::jsonb, ?, ?, ?)`,
+      req.userId,
+      consentType,
+      status,
+      source,
+      preferences ? JSON.stringify(preferences) : null,
+      ipAddress,
+      req.headers['user-agent'] || null,
+      withdrawnAt
+    );
+
+    const latest = await db.get(
+      `SELECT id, consent_type, consent_status, source, preferences, created_at, withdrawn_at
+       FROM user_consents WHERE id = ?`,
+      result.lastInsertRowid
+    );
+
+    res.json({ success: true, data: { consent: latest } });
+  } catch (error) {
+    logger.error(`[Users] Failed to record consent: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to save consent preferences' }
+    });
+  }
+});
+
 router.get('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
@@ -355,7 +427,7 @@ router.put('/:id', requireAuth, sanitizeAll(['name', 'bio', 'travel_style', 'pho
   }
 });
 
-router.get('/:id/export', requireAuth, requireFeature(FEATURES.EXPORT_DATA), async (req, res) => {
+router.get('/:id/export', privacyActionLimiter, requireAuth, requireFeature(FEATURES.EXPORT_DATA), async (req, res) => {
   try {
     const { id } = req.params;
     const isAdmin = req.userRole === 'admin';
@@ -382,7 +454,7 @@ router.get('/:id/export', requireAuth, requireFeature(FEATURES.EXPORT_DATA), asy
     const trips = await db.prepare('SELECT id, user_id, name, destination, start_date, end_date, budget, status, notes, created_at, updated_at FROM trips WHERE user_id = ?').all(id);
     
     // 3. Batch fetch all itinerary_days for these trips (FIXED: was 'itineraries' which doesn't exist)
-    const tripIds = trips.map(t => t.id);
+    const tripIds = trips.map(t => parseInt(t.id, 10)).filter(id => Number.isInteger(id) && id > 0);
     let itineraryDays = [];
     let activities = [];
     
@@ -392,7 +464,7 @@ router.get('/:id/export', requireAuth, requireFeature(FEATURES.EXPORT_DATA), asy
       itineraryDays = await db.prepare(`SELECT id, trip_id, day_number, date, notes FROM itinerary_days WHERE trip_id IN (${placeholders})`).all(...tripIds);
       
       // 4. Batch fetch all activities for these itinerary days
-      const dayIds = itineraryDays.map(d => d.id);
+      const dayIds = itineraryDays.map(d => parseInt(d.id, 10)).filter(id => Number.isInteger(id) && id > 0);
       if (dayIds.length > 0) {
         const activityPlaceholders = dayIds.map(() => '?').join(',');
         activities = await db.prepare(`SELECT id, day_id, trip_id, name, type, location, time, duration_hours, cost, booking_info, notes, order_index FROM activities WHERE day_id IN (${activityPlaceholders})`).all(...dayIds);
@@ -479,7 +551,7 @@ router.get('/:id/export', requireAuth, requireFeature(FEATURES.EXPORT_DATA), asy
   }
 });
 
-router.delete('/:id', requireAuth, requireFeature(FEATURES.DELETE_DATA), async (req, res) => {
+router.delete('/:id', privacyActionLimiter, requireAuth, requireFeature(FEATURES.DELETE_DATA), async (req, res) => {
   try {
     const { id } = req.params;
     const { permanent } = req.query; // ?permanent=true for hard delete

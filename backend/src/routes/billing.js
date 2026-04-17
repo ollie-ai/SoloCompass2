@@ -8,7 +8,10 @@ import {
     PLAN_PRICE_IDS 
 } from '../services/stripe.js';
 import { requireAuth } from '../middleware/auth.js';
-import { dispatchNotification } from '../services/notificationDispatcher.js';
+import { createNotification, getNotificationPreferences } from '../services/notificationService.js';
+import { getChannelsForType, CHANNEL } from '../services/notificationRegistry.js';
+import * as pushService from '../services/pushService.js';
+import rateLimit from 'express-rate-limit';
 import db from '../db.js';
 import logger from '../services/logger.js';
 import { startFreeTrial, changePlan, getUsage, checkTrialExpiry } from '../services/billingService.js';
@@ -37,76 +40,14 @@ import {
 
 const router = express.Router();
 
-// Apply rate limiting to all billing routes
-router.use(billingLimiter);
+const invoicesLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
-// ─── Plans definition ────────────────────────────────────────────────────────
-
-const PLANS = [
-  {
-    id: 'explorer',
-    name: 'Explorer',
-    tier: 'explorer',
-    monthlyPrice: 0,
-    annualPrice: 0,
-    currency: 'GBP',
-    priceId: null,
-    annualPriceId: null,
-    features: [
-      '2 active trips',
-      '1 AI itinerary/month',
-      '5 AI chat messages/month',
-      '1 emergency contact',
-      'Manual check-ins',
-      'SOS button',
-      'Advisories',
-    ],
-    limits: { trips: 2, aiItinerary: 1, aiChat: 5, emergencyContacts: 1 },
-  },
-  {
-    id: 'guardian',
-    name: 'Guardian',
-    tier: 'guardian',
-    monthlyPrice: 4.99,
-    annualPrice: 3.99,
-    currency: 'GBP',
-    get priceId() { return process.env.STRIPE_PRICE_ID_GUARDIAN || null; },
-    get annualPriceId() { return process.env.STRIPE_PRICE_ID_GUARDIAN_ANNUAL || null; },
-    features: [
-      'Unlimited trips',
-      'Unlimited AI itineraries',
-      'PDF export',
-      'Scheduled check-ins',
-      'Safe-Return Timer',
-      'Safe Haven Locator',
-      '3 emergency contacts',
-    ],
-    limits: { trips: null, aiItinerary: null, aiChat: null, emergencyContacts: 3 },
-  },
-  {
-    id: 'navigator',
-    name: 'Navigator',
-    tier: 'navigator',
-    monthlyPrice: 9.99,
-    annualPrice: 7.99,
-    currency: 'GBP',
-    get priceId() { return process.env.STRIPE_PRICE_ID_NAVIGATOR || null; },
-    get annualPriceId() { return process.env.STRIPE_PRICE_ID_NAVIGATOR_ANNUAL || null; },
-    features: [
-      'Everything in Guardian',
-      'Unlimited AI chat',
-      'AI safety advice',
-      'AI destination guide',
-      'Buddy matching & discovery',
-      'Quick translator',
-      'Unlimited emergency contacts',
-    ],
-    limits: { trips: null, aiItinerary: null, aiChat: null, emergencyContacts: null },
-  },
-];
-
-// ─── GET /plans (legacy + v1) ────────────────────────────────────────────────
-
+// Public endpoint - no auth required
 router.get('/plans', (req, res) => {
   const plans = PLANS.map(p => ({
     id: p.id,
@@ -367,14 +308,56 @@ router.get('/usage', authenticate, async (req, res) => {
   }
 });
 
-// ─── POST /webhook ───────────────────────────────────────────────────────────
-// This route must NOT parse JSON — it needs raw body for Stripe signature.
-// The route is registered in index.js with express.raw() middleware.
+/**
+ * GET /api/billing/invoices
+ * Retrieve billing history (invoices) from Stripe
+ */
+router.get('/invoices', invoicesLimiter, requireAuth, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const user = await db.prepare('SELECT stripe_customer_id, subscription_tier, is_premium FROM users WHERE id = ?').get(userId);
 
-router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-  const sig = req.headers['stripe-signature'];
-  if (!sig) return res.status(400).json({ error: 'Missing Stripe-Signature header' });
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
 
+    if (!user.stripe_customer_id || !process.env.STRIPE_SECRET_KEY) {
+      return res.json({
+        success: true,
+        data: {
+          invoices: [],
+          message: 'No billing history available.'
+        }
+      });
+    }
+
+    const invoiceList = await stripe.invoices.list({
+      customer: user.stripe_customer_id,
+      limit: 24,
+      status: 'paid',
+    });
+
+    const invoices = (invoiceList.data || []).map((inv) => ({
+      id: inv.id,
+      number: inv.number,
+      amount: inv.amount_paid,
+      currency: inv.currency,
+      status: inv.status,
+      pdfUrl: inv.invoice_pdf,
+      hostedUrl: inv.hosted_invoice_url,
+      periodStart: inv.period_start,
+      periodEnd: inv.period_end,
+      createdAt: inv.created,
+    }));
+
+    res.json({ success: true, data: { invoices } });
+  } catch (error) {
+    logger.error(`[Billing] Get invoices failed: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Failed to retrieve billing history' });
+  }
+});
+
+router.post('/webhook', async (req, res) => {
   try {
     const result = await handleStripeWebhook(req.body, sig);
     if (result.alreadyHandled) {

@@ -2515,32 +2515,42 @@ router.get('/billing/activity', ...adminGuard, async (req, res) => {
 router.get('/support/tickets', ...adminGuard, async (req, res) => {
   try {
     const { status, limit = 50, offset = 0 } = req.query;
-    
-    // For now, use events to track support issues
+
     let query = `
-      SELECT * FROM events 
-      WHERE event_name LIKE 'support_%'
+      SELECT st.*, u.email as user_email, u.name as user_name
+      FROM support_tickets st
+      LEFT JOIN users u ON st.user_id = u.id
+      WHERE 1=1
     `;
     const params = [];
-    
+
     if (status && status !== 'all') {
-      // Map status to event names
-      const statusMap = {
-        'open': 'support_ticket_created',
-        'resolved': 'support_ticket_resolved'
-      };
-      if (statusMap[status]) {
-        query += ' AND event_name = ?';
-        params.push(statusMap[status]);
-      }
+      query += ' AND st.status = ?';
+      params.push(status);
     }
-    
-    query += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?';
+
+    query += `
+      ORDER BY 
+        st.is_emergency DESC,
+        CASE st.priority 
+          WHEN 'urgent' THEN 4
+          WHEN 'high' THEN 3
+          WHEN 'normal' THEN 2
+          ELSE 1
+        END DESC,
+        st.created_at DESC
+      LIMIT ? OFFSET ?
+    `;
     params.push(parseInt(limit), parseInt(offset));
-    
+
     const tickets = await db.all(query, ...params);
-    const count = await db.get('SELECT COUNT(*) as count FROM events WHERE event_name LIKE \'support_%\'');
-    
+    const countQuery = status && status !== 'all'
+      ? 'SELECT COUNT(*) as count FROM support_tickets WHERE status = ?'
+      : 'SELECT COUNT(*) as count FROM support_tickets';
+    const count = status && status !== 'all'
+      ? await db.get(countQuery, status)
+      : await db.get(countQuery);
+
     res.json({ success: true, data: { tickets: tickets || [], total: count?.count || 0 } });
   } catch (error) {
     res.json({ success: true, data: { tickets: [], total: 0 } });
@@ -2727,9 +2737,14 @@ router.post('/support/reply', ...adminGuard, async (req, res) => {
     let recipientUserId = userId;
     
     if (!recipientEmail && ticketId) {
-      const ticket = await db.get('SELECT * FROM events WHERE id = ?', ticketId);
+      const ticket = await db.get(`
+        SELECT st.id, st.user_id, u.email
+        FROM support_tickets st
+        LEFT JOIN users u ON st.user_id = u.id
+        WHERE st.id = ?
+      `, ticketId);
       if (ticket) {
-        recipientEmail = ticket.event_data?.email;
+        recipientEmail = ticket.email;
         recipientUserId = ticket.user_id;
       }
     }
@@ -4269,3 +4284,179 @@ router.patch('/reports/:id', ...adminGuard, async (req, res) => {
 });
 
 export default router;
+
+// ──────────────────────────────────────────────
+// Reports moderation queue
+// ──────────────────────────────────────────────
+
+router.get('/reports', ...adminGuard, async (req, res) => {
+  try {
+    const { status = 'pending', limit = 50, offset = 0 } = req.query;
+    const params = [];
+    let whereClause = 'WHERE 1=1';
+
+    if (status && status !== 'all') {
+      whereClause += ' AND r.status = ?';
+      params.push(status);
+    }
+
+    const rows = await db.all(`
+      SELECT r.*,
+             reporter.email AS reporter_email,
+             reviewer.email AS reviewer_email
+      FROM reports r
+      LEFT JOIN users reporter ON r.reporter_id = reporter.id
+      LEFT JOIN users reviewer ON r.reviewed_by = reviewer.id
+      ${whereClause}
+      ORDER BY r.created_at DESC
+      LIMIT ? OFFSET ?
+    `, ...params, parseInt(limit), parseInt(offset));
+
+    const countQuery = status && status !== 'all'
+      ? 'SELECT COUNT(*) AS count FROM reports WHERE status = ?'
+      : 'SELECT COUNT(*) AS count FROM reports';
+    const count = status && status !== 'all'
+      ? await db.get(countQuery, status)
+      : await db.get(countQuery);
+
+    res.json({ success: true, data: { reports: rows || [], total: count?.count || 0 } });
+  } catch (error) {
+    logger.error(`[Admin] Failed to list reports: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Failed to list reports' });
+  }
+});
+
+router.patch('/reports/:id', ...adminGuard, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, resolution_note = '' } = req.body;
+    const allowed = ['under_review', 'resolved', 'dismissed'];
+
+    if (!allowed.includes(status)) {
+      return res.status(400).json({ success: false, error: `Status must be one of: ${allowed.join(', ')}` });
+    }
+
+    const report = await db.get('SELECT id FROM reports WHERE id = ?', id);
+    if (!report) return res.status(404).json({ success: false, error: 'Report not found' });
+
+    await db.run(
+      `UPDATE reports SET status = ?, resolution_note = ?, reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      status, resolution_note, req.userId, id
+    );
+
+    await db.run(
+      'INSERT INTO events (user_id, event_name, event_data) VALUES (?, ?, ?)',
+      req.userId, 'report_reviewed', JSON.stringify({ reportId: id, status, resolution_note })
+    );
+
+    res.json({ success: true, data: { message: 'Report updated' } });
+  } catch (error) {
+    logger.error(`[Admin] Failed to update report ${req.params.id}: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Failed to update report' });
+  }
+});
+
+
+// ──────────────────────────────────────────────
+// FAQ article management (admin)
+// ──────────────────────────────────────────────
+
+router.get('/faq', ...adminGuard, async (req, res) => {
+  try {
+    const rows = await db.all('SELECT * FROM faq_articles ORDER BY category, display_order');
+    res.json({ success: true, data: { articles: rows || [] } });
+  } catch (error) {
+    logger.error(`[Admin] Failed to list FAQ articles: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Failed to list FAQ articles' });
+  }
+});
+
+router.post('/faq', ...adminGuard, async (req, res) => {
+  try {
+    const { title, content, category, display_order = 0, active = true } = req.body;
+    if (!title?.trim() || !content?.trim() || !category?.trim()) {
+      return res.status(400).json({ success: false, error: 'title, content, and category are required' });
+    }
+    const result = await db.run(
+      'INSERT INTO faq_articles (title, content, category, display_order, active) VALUES (?, ?, ?, ?, ?)',
+      title.trim(), content.trim(), category.trim(), display_order, active ? true : false
+    );
+    res.status(201).json({ success: true, data: { id: result.lastInsertRowid } });
+  } catch (error) {
+    logger.error(`[Admin] Failed to create FAQ article: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Failed to create FAQ article' });
+  }
+});
+
+router.put('/faq/:id', ...adminGuard, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, content, category, display_order, active } = req.body;
+    await db.run(
+      'UPDATE faq_articles SET title = ?, content = ?, category = ?, display_order = ?, active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      title, content, category, display_order, active ? true : false, id
+    );
+    res.json({ success: true });
+  } catch (error) {
+    logger.error(`[Admin] Failed to update FAQ article: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Failed to update FAQ article' });
+  }
+});
+
+router.delete('/faq/:id', ...adminGuard, async (req, res) => {
+  try {
+    await db.run('DELETE FROM faq_articles WHERE id = ?', req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    logger.error(`[Admin] Failed to delete FAQ article: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Failed to delete FAQ article' });
+  }
+});
+
+// ──────────────────────────────────────────────
+// Changelog management (admin)
+// ──────────────────────────────────────────────
+
+router.get('/changelog', ...adminGuard, async (req, res) => {
+  try {
+    const rows = await db.all('SELECT * FROM changelog_entries ORDER BY created_at DESC LIMIT 100');
+    res.json({ success: true, data: { entries: rows || [] } });
+  } catch (error) {
+    logger.error(`[Admin] Failed to list changelog entries: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Failed to list changelog entries' });
+  }
+});
+
+router.post('/changelog', ...adminGuard, async (req, res) => {
+  try {
+    const { version, title, description = '', type = 'feature', published = false } = req.body;
+    if (!version?.trim() || !title?.trim()) {
+      return res.status(400).json({ success: false, error: 'version and title are required' });
+    }
+    const publishedAt = published ? new Date().toISOString() : null;
+    const result = await db.run(
+      'INSERT INTO changelog_entries (version, title, description, type, published, published_at) VALUES (?, ?, ?, ?, ?, ?)',
+      version.trim(), title.trim(), description, type, published ? true : false, publishedAt
+    );
+    res.status(201).json({ success: true, data: { id: result.lastInsertRowid } });
+  } catch (error) {
+    logger.error(`[Admin] Failed to create changelog entry: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Failed to create changelog entry' });
+  }
+});
+
+router.patch('/changelog/:id', ...adminGuard, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { published, title, description, type } = req.body;
+    const publishedAt = published ? new Date().toISOString() : null;
+    await db.run(
+      'UPDATE changelog_entries SET published = ?, published_at = ?, title = COALESCE(?, title), description = COALESCE(?, description), type = COALESCE(?, type) WHERE id = ?',
+      published ? true : false, publishedAt, title, description, type, id
+    );
+    res.json({ success: true });
+  } catch (error) {
+    logger.error(`[Admin] Failed to update changelog entry: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Failed to update changelog entry' });
+  }
+});

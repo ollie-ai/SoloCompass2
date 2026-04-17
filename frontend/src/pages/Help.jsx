@@ -5,6 +5,7 @@ import { ChevronDown, Mail, Book, Shield, User, CreditCard, MapPin, AlertTriangl
 import api from '../lib/api';
 import { trackEvent } from '../lib/telemetry';
 import SEO from '../components/SEO';
+import StatusPage from '../components/StatusPage';
 
 // Map API string icon names → Lucide components
 const ICON_MAP = {
@@ -255,6 +256,11 @@ const Help = () => {
             >
               Email Support <ArrowRight size={20} />
             </a>
+          </div>
+
+          {/* System status */}
+          <div className="mt-8">
+            <StatusPage />
           </div>
 
           <div className="mt-16 pt-8 border-t border-base-300/50">

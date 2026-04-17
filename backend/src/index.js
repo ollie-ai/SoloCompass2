@@ -115,7 +115,9 @@ async function bootstrap() {
     const { default: guardianRoutes } = await import('./routes/guardian.js');
     const { default: callsRoutes } = await import('./routes/calls.js');
     const { default: esimRoutes } = await import('./routes/esim.js');
-    const { default: v1Routes } = await import('./routes/v1.js');
+    const { default: reportsRoutes } = await import('./routes/reports.js');
+    const { default: featuresRoutes } = await import('./routes/features.js');
+    const { default: onboardingRoutes } = await import('./routes/onboarding.js');
 
     const app = express();
     const server = createServer(app);
@@ -238,7 +240,9 @@ async function bootstrap() {
     app.use('/api/translate', translateRoutes);
     app.use('/api/countries', countriesRoutes);
     app.use('/api/cities', citiesRoutes);
-    app.use('/api/v1', v1Routes);
+    app.use('/api/reports', reportsRoutes);
+    app.use('/api/features', featuresRoutes);
+    app.use('/api/onboarding', onboardingRoutes);
 
     // Seed test events for admin (development only)
     if (process.env.NODE_ENV !== 'production') {
@@ -286,6 +290,39 @@ async function bootstrap() {
 
     // health - generic status only
     app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+
+    // Serve sitemap.xml and robots.txt (P2 requirements)
+    app.get('/sitemap.xml', async (req, res) => {
+      try {
+        const sitemap = await generateSitemap();
+        res.set('Content-Type', 'application/xml');
+        if (sitemap && typeof sitemap === 'string') {
+          return res.send(sitemap);
+        }
+        // Fall back to path-based serving if generateSitemap returns a file path
+        const sitemapPath = typeof sitemap === 'object' && sitemap?.path ? sitemap.path : null;
+        if (sitemapPath) {
+          return res.sendFile(sitemapPath);
+        }
+        res.status(503).send('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
+      } catch (err) {
+        logger.warn('[Sitemap] Failed:', err.message);
+        res.status(503).send('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
+      }
+    });
+
+    app.get('/robots.txt', (req, res) => {
+      res.type('text/plain');
+      const siteUrl = process.env.FRONTEND_URL || 'https://solocompass.app';
+      res.send([
+        'User-agent: *',
+        'Allow: /',
+        'Disallow: /admin',
+        'Disallow: /api/',
+        '',
+        `Sitemap: ${siteUrl}/sitemap.xml`,
+      ].join('\n'));
+    });
 
     // 404 handler for unknown API routes
     app.use('/api', (req, res) => {

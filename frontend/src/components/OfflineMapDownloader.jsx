@@ -1,154 +1,211 @@
-import { useState } from 'react';
-import { Download, CheckCircle, Loader, MapPin, AlertTriangle } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { Download, CheckCircle, AlertCircle, Wifi, WifiOff, Loader2, X } from 'lucide-react';
 
-const TILE_CACHE = 'solocompass-tiles-v1';
-const TILE_SERVER = 'https://tile.openstreetmap.org';
+const TILE_TEMPLATE = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+const SUBDOMAINS = ['a', 'b', 'c'];
 
-function getTileCoords(lat, lng, zoom) {
-  const n = Math.pow(2, zoom);
-  const x = Math.floor(((lng + 180) / 360) * n);
-  const latRad = (lat * Math.PI) / 180;
-  const y = Math.floor(((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n);
-  return { x, y };
-}
+/**
+ * Build an array of OSM tile URLs that cover the given bounding box
+ * at zoom levels from zoomMin to zoomMax (inclusive).
+ */
+function buildTileUrls(bounds, zoomMin, zoomMax) {
+  const urls = [];
 
-function getTilesForBounds(bounds, zoom) {
-  const { north, south, east, west } = bounds;
-  const nw = getTileCoords(north, west, zoom);
-  const se = getTileCoords(south, east, zoom);
-  const tiles = [];
-  for (let x = nw.x; x <= se.x; x++) {
-    for (let y = nw.y; y <= se.y; y++) {
-      tiles.push({ x, y, z: zoom });
+  const lng2tile = (lng, z) => Math.floor(((lng + 180) / 360) * Math.pow(2, z));
+  const lat2tile = (lat, z) => Math.floor(
+    ((1 - Math.log(Math.tan((lat * Math.PI) / 180) + 1 / Math.cos((lat * Math.PI) / 180)) / Math.PI) / 2) *
+      Math.pow(2, z)
+  );
+
+  for (let z = zoomMin; z <= zoomMax; z++) {
+    const xMin = lng2tile(bounds.west, z);
+    const xMax = lng2tile(bounds.east, z);
+    const yMin = lat2tile(bounds.north, z);
+    const yMax = lat2tile(bounds.south, z);
+
+    for (let x = xMin; x <= xMax; x++) {
+      for (let y = yMin; y <= yMax; y++) {
+        const s = SUBDOMAINS[(x + y) % SUBDOMAINS.length];
+        urls.push(TILE_TEMPLATE.replace('{s}', s).replace('{z}', z).replace('{x}', x).replace('{y}', y));
+      }
     }
   }
-  return tiles;
-}
 
-function estimateTileCount(bounds, minZoom, maxZoom) {
-  let count = 0;
-  for (let z = minZoom; z <= maxZoom; z++) {
-    count += getTilesForBounds(bounds, z).length;
-  }
-  return count;
+  return urls;
 }
 
 /**
- * OfflineMapDownloader — downloads OSM map tiles for a bounds area into Cache API.
+ * OfflineMapDownloader — downloads and caches OpenStreetMap tiles for offline use.
+ *
+ * Uses the Cache API (available in PWA/service-worker contexts) to store
+ * tile images so they can be served offline.
  *
  * Props:
- *   bounds: { north, south, east, west }
- *   minZoom: number (default 10)
- *   maxZoom: number (default 14)
- *   label: string (default 'Download Area')
+ *   bounds   – { north, south, east, west } decimal degrees
+ *   label    – Human-readable area name shown in the UI
+ *   zoomMin  – Minimum zoom level to cache (default 8)
+ *   zoomMax  – Maximum zoom level to cache (default 14)
+ *   cacheName – Cache API bucket name (default 'solocompass-map-tiles')
+ *   className – Extra classes for the outer container
  */
-export default function OfflineMapDownloader({ bounds, minZoom = 10, maxZoom = 14, label = 'Download Area' }) {
-  const [state, setState] = useState('idle'); // idle | downloading | done | error
+export default function OfflineMapDownloader({
+  bounds,
+  label = 'Current Area',
+  zoomMin = 8,
+  zoomMax = 14,
+  cacheName = 'solocompass-map-tiles',
+  className = '',
+}) {
+  const [status, setStatus] = useState('idle'); // idle | downloading | done | error | unsupported
   const [progress, setProgress] = useState({ done: 0, total: 0 });
-  const [errorMsg, setErrorMsg] = useState('');
 
-  const supported = typeof window !== 'undefined' && 'caches' in window;
+  const isSupported = typeof window !== 'undefined' && 'caches' in window;
 
-  if (!supported) return null;
+  const handleDownload = useCallback(async () => {
+    if (!isSupported) {
+      setStatus('unsupported');
+      return;
+    }
 
-  const estimatedTiles = bounds ? estimateTileCount(bounds, minZoom, maxZoom) : 0;
-  const estimatedMB = (estimatedTiles * 8 / 1024).toFixed(1); // ~8KB per tile avg
-
-  const handleDownload = async () => {
     if (!bounds) return;
-    setState('downloading');
-    setErrorMsg('');
+
+    const urls = buildTileUrls(bounds, zoomMin, zoomMax);
+    if (urls.length === 0) return;
+
+    setStatus('downloading');
+    setProgress({ done: 0, total: urls.length });
 
     try {
-      const cache = await caches.open(TILE_CACHE);
-      const allTiles = [];
-      for (let z = minZoom; z <= maxZoom; z++) {
-        allTiles.push(...getTilesForBounds(bounds, z));
-      }
+      const cache = await window.caches.open(cacheName);
+      let completed = 0;
 
-      setProgress({ done: 0, total: allTiles.length });
-
-      const BATCH = 6;
-      for (let i = 0; i < allTiles.length; i += BATCH) {
-        const batch = allTiles.slice(i, i + BATCH);
+      // Download in batches of 10 to avoid overwhelming the network
+      const batchSize = 10;
+      for (let i = 0; i < urls.length; i += batchSize) {
+        const batch = urls.slice(i, i + batchSize);
         await Promise.all(
-          batch.map(async ({ x, y, z }) => {
-            const url = `${TILE_SERVER}/${z}/${x}/${y}.png`;
+          batch.map(async (url) => {
             try {
               const cached = await cache.match(url);
               if (!cached) {
-                const res = await fetch(url);
-                if (res.ok) await cache.put(url, res);
+                const response = await fetch(url);
+                if (response.ok) {
+                  await cache.put(url, response.clone());
+                }
               }
             } catch {
-              // Skip individual tile failures silently
+              // Silently skip individual tile failures
             }
+            completed += 1;
+            setProgress({ done: completed, total: urls.length });
           })
         );
-        setProgress(p => ({ ...p, done: Math.min(p.total, i + BATCH) }));
       }
 
-      setState('done');
+      setStatus('done');
     } catch (err) {
-      setErrorMsg(err.message || 'Download failed');
-      setState('error');
+      console.error('[OfflineMapDownloader] Download failed:', err);
+      setStatus('error');
     }
-  };
+  }, [bounds, zoomMin, zoomMax, cacheName, isSupported]);
+
+  const handleClear = useCallback(async () => {
+    try {
+      await window.caches.delete(cacheName);
+      setStatus('idle');
+      setProgress({ done: 0, total: 0 });
+    } catch (err) {
+      console.error('[OfflineMapDownloader] Failed to clear cache:', err);
+    }
+  }, [cacheName]);
 
   const pct = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
 
+  if (!isSupported) {
+    return (
+      <div className={`flex items-center gap-2 text-sm text-base-content/50 ${className}`}>
+        <WifiOff size={14} />
+        <span>Offline maps not supported in this browser</span>
+      </div>
+    );
+  }
+
   return (
-    <div className="card bg-base-100 border border-base-200 p-4 space-y-3">
-      <div className="flex items-center gap-2">
-        <MapPin size={15} className="text-brand-vibrant" />
-        <span className="text-sm font-semibold text-base-content">{label}</span>
+    <div className={`glass-card p-4 rounded-2xl border border-base-300/50 space-y-3 ${className}`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {status === 'done' ? (
+            <Wifi size={16} className="text-success" />
+          ) : (
+            <WifiOff size={16} className="text-base-content/40" />
+          )}
+          <div>
+            <p className="text-sm font-black text-base-content">{label}</p>
+            <p className="text-[11px] font-bold text-base-content/40 uppercase tracking-widest">
+              Offline Map Tiles
+            </p>
+          </div>
+        </div>
+
+        {status === 'done' && (
+          <button
+            onClick={handleClear}
+            className="flex items-center gap-1 text-[11px] font-black text-error/70 hover:text-error transition-colors"
+            title="Remove cached tiles"
+          >
+            <X size={12} />
+            Clear
+          </button>
+        )}
       </div>
 
-      {bounds && (
-        <p className="text-xs text-base-content/50">
-          ~{estimatedTiles} tiles · est. {estimatedMB} MB
-        </p>
-      )}
-
-      {state === 'idle' && (
-        <button
-          onClick={handleDownload}
-          disabled={!bounds}
-          className="btn btn-sm btn-primary gap-2 w-full"
-        >
-          <Download size={14} />
-          Download for offline use
-        </button>
-      )}
-
-      {state === 'downloading' && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm text-base-content/70">
-            <Loader size={13} className="animate-spin" />
-            Downloading… {pct}%
-          </div>
+      {status === 'downloading' && (
+        <div className="space-y-1.5">
           <div className="w-full bg-base-200 rounded-full h-1.5">
             <div
-              className="h-1.5 rounded-full bg-brand-vibrant transition-all"
+              className="bg-brand-vibrant h-1.5 rounded-full transition-all"
               style={{ width: `${pct}%` }}
             />
           </div>
-          <p className="text-xs text-base-content/40">{progress.done} / {progress.total} tiles</p>
+          <p className="text-[11px] font-bold text-base-content/50">
+            {progress.done.toLocaleString()} / {progress.total.toLocaleString()} tiles ({pct}%)
+          </p>
         </div>
       )}
 
-      {state === 'done' && (
-        <div className="flex items-center gap-2 text-sm text-emerald-600">
-          <CheckCircle size={15} />
-          Maps saved for offline use
+      {status === 'done' && (
+        <div className="flex items-center gap-1.5 text-xs font-bold text-success">
+          <CheckCircle size={14} />
+          {progress.done.toLocaleString()} tiles cached — works offline
         </div>
       )}
 
-      {state === 'error' && (
-        <div className="flex items-start gap-2 text-sm text-error">
-          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-          <span>{errorMsg || 'Download failed. Please try again.'}</span>
+      {status === 'error' && (
+        <div className="flex items-center gap-1.5 text-xs font-bold text-error">
+          <AlertCircle size={14} />
+          Download failed. Check your connection and try again.
         </div>
+      )}
+
+      {(status === 'idle' || status === 'error') && (
+        <button
+          onClick={handleDownload}
+          disabled={!bounds}
+          className="w-full flex items-center justify-center gap-2 bg-base-200 hover:bg-base-300 disabled:opacity-40 rounded-xl py-2 text-xs font-black uppercase tracking-tight transition-colors"
+        >
+          <Download size={13} />
+          Download for Offline Use
+        </button>
+      )}
+
+      {status === 'downloading' && (
+        <button
+          disabled
+          className="w-full flex items-center justify-center gap-2 bg-brand-vibrant/10 rounded-xl py-2 text-xs font-black uppercase tracking-tight text-brand-vibrant"
+        >
+          <Loader2 size={13} className="animate-spin" />
+          Downloading…
+        </button>
       )}
     </div>
   );

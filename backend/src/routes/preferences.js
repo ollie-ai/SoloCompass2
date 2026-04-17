@@ -110,8 +110,12 @@ router.put('/', requireAuth, async (req, res) => {
       : null;
 
     // Ensure optional new columns exist (migration-safe)
-    await db.run(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS timezone TEXT`).catch(() => {});
-    await db.run(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS locale TEXT`).catch(() => {});
+    await db.run(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS timezone TEXT`).catch((e) => {
+      if (!e.message?.includes('duplicate')) logger.debug(`[Preferences] timezone column: ${e.message}`);
+    });
+    await db.run(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS locale TEXT`).catch((e) => {
+      if (!e.message?.includes('duplicate')) logger.debug(`[Preferences] locale column: ${e.message}`);
+    });
 
     // Check if profile exists
     const existingProfile = await db.prepare('SELECT id FROM profiles WHERE user_id = ?').get(req.userId);

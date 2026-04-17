@@ -9,6 +9,7 @@
  *  PATCH  /api/support/tickets/:id/status   update status → notifies user
  */
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import { body, query, validationResult } from 'express-validator';
 import { requireAuth, requireSupportAgent } from '../middleware/auth.js';
 import { sanitizeAll } from '../middleware/validate.js';
@@ -17,6 +18,15 @@ import logger from '../services/logger.js';
 import { sendTemplateEmail } from '../services/resendClient.js';
 
 const router = express.Router();
+
+// Rate limiter for ticket creation and replies to prevent abuse
+const ticketWriteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many requests, please try again later' },
+});
 
 const VALID_STATUSES = ['open', 'in_progress', 'waiting_on_user', 'resolved', 'closed'];
 const VALID_CATEGORIES = [
@@ -45,7 +55,7 @@ async function ensureSchema() {
       created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
       updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
     )
-  `).catch(() => {});
+  `).catch((e) => logger.warn(`[Support] support_tickets schema: ${e.message}`));
 
   await db.run(`
     CREATE TABLE IF NOT EXISTS support_ticket_replies (
@@ -56,7 +66,7 @@ async function ensureSchema() {
       content     TEXT    NOT NULL,
       created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
     )
-  `).catch(() => {});
+  `).catch((e) => logger.warn(`[Support] support_ticket_replies schema: ${e.message}`));
 }
 
 ensureSchema();
@@ -106,6 +116,7 @@ async function notifyStatusChange(ticket, oldStatus, newStatus) {
  */
 router.get(
   '/tickets',
+  ticketWriteLimiter,
   requireAuth,
   [
     query('status').optional().isIn(VALID_STATUSES),
@@ -168,6 +179,7 @@ router.get(
  */
 router.post(
   '/tickets',
+  ticketWriteLimiter,
   requireAuth,
   sanitizeAll(['subject', 'description']),
   [
@@ -232,6 +244,7 @@ router.get('/tickets/:id', requireAuth, async (req, res) => {
  */
 router.post(
   '/tickets/:id/replies',
+  ticketWriteLimiter,
   requireAuth,
   sanitizeAll(['content']),
   [body('content').notEmpty().trim().isLength({ max: 5000 })],
@@ -285,6 +298,7 @@ router.post(
  */
 router.patch(
   '/tickets/:id/status',
+  ticketWriteLimiter,
   requireSupportAgent,
   [body('status').notEmpty().isIn(VALID_STATUSES)],
   handleValidation,

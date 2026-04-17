@@ -1,4 +1,5 @@
 import express from 'express'; 
+import rateLimit from 'express-rate-limit';
 import { 
     stripe,
     createCheckoutSession, 
@@ -15,6 +16,14 @@ import db from '../db.js';
 import logger from '../services/logger.js';
 
 const router = express.Router();
+
+const billingWriteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many billing requests, please try again later' },
+});
 
 // Public endpoint - no auth required
 router.get('/plans', (req, res) => {
@@ -177,7 +186,7 @@ router.post('/cancel-subscription', requireAuth, async (req, res) => {
  * - Downgrades are scheduled at the end of the current billing period
  *   so the user retains access until they have paid for.
  */
-router.post('/change-plan', requireAuth, async (req, res) => {
+router.post('/change-plan', billingWriteLimiter, requireAuth, async (req, res) => {
   try {
     const { planId } = req.body;
     const userId = req.userId;

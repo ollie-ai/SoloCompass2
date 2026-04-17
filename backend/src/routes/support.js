@@ -20,7 +20,7 @@ import { sendTemplateEmail } from '../services/resendClient.js';
 const router = express.Router();
 
 // Rate limiter for ticket creation and replies to prevent abuse
-const ticketWriteLimiter = rateLimit({
+const ticketRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 20,
   standardHeaders: true,
@@ -116,7 +116,7 @@ async function notifyStatusChange(ticket, oldStatus, newStatus) {
  */
 router.get(
   '/tickets',
-  ticketWriteLimiter,
+  ticketRateLimiter,
   requireAuth,
   [
     query('status').optional().isIn(VALID_STATUSES),
@@ -179,7 +179,7 @@ router.get(
  */
 router.post(
   '/tickets',
-  ticketWriteLimiter,
+  ticketRateLimiter,
   requireAuth,
   sanitizeAll(['subject', 'description']),
   [
@@ -209,7 +209,7 @@ router.post(
 /**
  * GET /api/support/tickets/:id
  */
-router.get('/tickets/:id', requireAuth, async (req, res) => {
+router.get('/tickets/:id', ticketRateLimiter, requireAuth, async (req, res) => {
   try {
     const ticket = await db.get(
       'SELECT t.*, u.name as user_name FROM support_tickets t LEFT JOIN users u ON t.user_id = u.id WHERE t.id = ?',
@@ -244,7 +244,7 @@ router.get('/tickets/:id', requireAuth, async (req, res) => {
  */
 router.post(
   '/tickets/:id/replies',
-  ticketWriteLimiter,
+  ticketRateLimiter,
   requireAuth,
   sanitizeAll(['content']),
   [body('content').notEmpty().trim().isLength({ max: 5000 })],
@@ -298,7 +298,7 @@ router.post(
  */
 router.patch(
   '/tickets/:id/status',
-  ticketWriteLimiter,
+  ticketRateLimiter,
   requireSupportAgent,
   [body('status').notEmpty().isIn(VALID_STATUSES)],
   handleValidation,

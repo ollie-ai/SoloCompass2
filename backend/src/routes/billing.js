@@ -243,7 +243,15 @@ router.post('/change-plan', billingWriteLimiter, requireAuth, async (req, res) =
     const PLAN_ORDER = ['explorer', 'guardian', 'navigator'];
     const currentIdx = PLAN_ORDER.indexOf(user.subscription_tier || 'explorer');
     const newIdx = PLAN_ORDER.indexOf(planId);
-    const isDowngrade = newIdx < currentIdx;
+
+    if (newIdx === -1) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_PLAN', message: `Unknown plan "${planId}". Valid plans: ${PLAN_ORDER.join(', ')}` }
+      });
+    }
+
+    const isDowngrade = currentIdx !== -1 && newIdx < currentIdx;
 
     if (planId === 'explorer') {
       // Downgrade to free — cancel at period end

@@ -3,7 +3,7 @@ import { body, validationResult } from 'express-validator';
 import rateLimit from 'express-rate-limit';
 import db from '../db.js';
 import logger from '../services/logger.js';
-import { requireAuth } from '../middleware/auth.js';
+import helpArticles from '../data/helpArticles.json' with { type: 'json' };
 
 const router = express.Router();
 const supportTicketLimiter = rateLimit({
@@ -126,6 +126,16 @@ router.get('/faqs', (req, res) => {
     success: true,
     data: faqs
   });
+});
+
+
+/**
+ * GET /api/help/articles
+ * Returns help center articles for in-app support center
+ */
+router.get('/articles', (req, res) => {
+  logger.http(`[Help] GET /articles - Request ID: ${req.id}`);
+  res.json({ success: true, data: helpArticles, count: helpArticles.length });
 });
 
 /**

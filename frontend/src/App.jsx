@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-route
 import { Toaster } from 'react-hot-toast';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useAuthStore } from './stores/authStore';
+import { useI18n } from './i18n/I18nProvider';
+import { trackFrontendError } from './lib/errorTracking';
 import { useThemeStore } from './stores/themeStore';
 import { initErrorCollector } from './lib/errorCollector';
 import 'react-grid-layout/css/styles.css';
@@ -57,6 +59,7 @@ const PinkPath = lazy(() => import('./pages/PinkPath'));
 const CrimeMap = lazy(() => import('./pages/CrimeMap'));
 const Compare = lazy(() => import('./pages/Compare'));
 const NotFound = lazy(() => import('./pages/NotFound'));
+const Referrals = lazy(() => import('./pages/Referrals'));
 const Notifications = lazy(() => import('./pages/Notifications'));
 const Messages = lazy(() => import('./pages/Messages'));
 const Checkout = lazy(() => import('./pages/Checkout'));
@@ -81,6 +84,7 @@ function LoadingFallback() {
 }
 
 function ErrorFallback({ error, resetErrorBoundary }) {
+  const { t } = useI18n();
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="max-w-md w-full bg-base-100 rounded-xl shadow-lg p-8 text-center">
@@ -89,22 +93,22 @@ function ErrorFallback({ error, resetErrorBoundary }) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
         </div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">Something went wrong</h2>
+        <h2 className="text-xl font-semibold text-gray-900 mb-2">{t('app.errorTitle')}</h2>
         <p className="text-gray-600 mb-6">
-          We encountered an unexpected error. Please try again or refresh the page.
+          {t('app.errorDescription')}
         </p>
         <div className="flex gap-3 justify-center">
           <button
             onClick={() => window.location.reload()}
             className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
           >
-            Refresh Page
+            {t('app.refreshPage')}
           </button>
           <button
             onClick={resetErrorBoundary}
             className="px-4 py-2 bg-brand-vibrant text-white rounded-lg hover:opacity-90 transition-opacity"
           >
-            Try Again
+            {t('app.tryAgain')}
           </button>
         </div>
         {import.meta.env.DEV && (
@@ -152,7 +156,7 @@ function App() {
   }, [theme]);
 
   return (
-    <ErrorBoundary FallbackComponent={ErrorFallback}>
+    <ErrorBoundary FallbackComponent={ErrorFallback} onError={(error, info) => trackFrontendError(error, { componentStack: info?.componentStack })}>
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <PageTracker />
         <Toaster position="top-right" />
@@ -498,6 +502,7 @@ function App() {
             <Route path="/cookies" element={<Cookies />} />
             <Route path="/legal" element={<Legal />} />
             <Route path="/help" element={<Help />} />
+            <Route path="/referrals" element={<ProtectedRoute><Referrals /></ProtectedRoute>} />
             <Route path="/docs" element={<Docs />} />
             <Route path="/partnerships" element={<Partnerships />} />
             <Route path="/contact" element={<Contact />} />

@@ -40,11 +40,18 @@ async function resizeAvatar(buffer, size) {
 
 const router = express.Router();
 
-const privacyActionLimiter = rateLimit({
+const userReadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 40,
+  max: 120,
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+});
+
+const userWriteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
 // Whitelist of allowed profile fields
@@ -53,70 +60,7 @@ const ALLOWED_PROFILE_FIELDS = [
   'interests', 'budget_level', 'pace', 'accommodation_type'
 ];
 
-// Avatar upload multer (5MB, JPEG/PNG/WebP only)
-const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const avatarUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-  fileFilter: (req, file, cb) => {
-    if (ALLOWED_MIME_TYPES.has(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only JPEG, PNG, and WebP images are allowed'), false);
-    }
-  },
-});
-
-// PUT /api/users/me/avatar — dedicated avatar upload with size/type validation + 3-size resize
-router.put('/me/avatar', uploadLimiter, authenticate, avatarUpload.single('avatar'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'No file uploaded' } });
-    }
-
-    const userId = req.user.userId;
-    const ts = Date.now();
-
-    // Upload all 3 sizes in parallel
-    const uploads = await Promise.all(
-      AVATAR_SIZES.map(async ({ key, size, suffix }) => {
-        const resized = await resizeAvatar(req.file.buffer, size);
-        const mime = sharp ? 'image/webp' : req.file.mimetype;
-        const ext = mime.split('/')[1].replace('jpeg', 'jpg');
-        const fileName = `avatars/${userId}-${ts}-${suffix}.${ext}`;
-        const { fileUrl, error: uploadError } = await supabaseStorage.uploadFile(
-          fileName, resized, mime, 'avatars'
-        );
-        if (uploadError) throw new Error(`Upload failed for ${key}: ${uploadError}`);
-        return { key, fileUrl };
-      })
-    );
-
-    const urlMap = Object.fromEntries(uploads.map(({ key, fileUrl }) => [key, fileUrl]));
-
-    await db.run(
-      `UPDATE profiles SET avatar_url = $1, avatar_thumbnail_url = $2, avatar_medium_url = $3, updated_at = CURRENT_TIMESTAMP WHERE user_id = $4`,
-      urlMap.full, urlMap.thumbnail, urlMap.medium, userId
-    );
-
-    res.json({
-      success: true,
-      data: {
-        avatarUrl: urlMap.full,
-        thumbnailUrl: urlMap.thumbnail,
-        mediumUrl: urlMap.medium,
-      }
-    });
-  } catch (err) {
-    if (err.message?.includes('Only JPEG')) {
-      return res.status(400).json({ success: false, error: { code: 'INVALID_FILE_TYPE', message: err.message } });
-    }
-    logger.error(`[Users] Avatar upload failed: ${err.message}`);
-    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to upload avatar' } });
-  }
-});
-
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', userReadLimiter, requireAuth, async (req, res) => {
   try {
     const { search, role, limit = 50, offset = 0, include_deleted } = req.query;
     const isAdmin = req.userRole === 'admin';
@@ -178,10 +122,10 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
-router.get('/me', requireAuth, async (req, res) => {
+router.get('/me', userReadLimiter, requireAuth, async (req, res) => {
   try {
     const user = await db.prepare(`
-      SELECT u.id, u.email, u.name, u.role, u.created_at, u.updated_at,
+      SELECT u.id, u.email, u.name, u.role, u.created_at, u.updated_at, u.tour_seen,
              p.avatar_url, p.bio, p.phone, p.company, p.website, p.home_city, p.interests, p.travel_style
       FROM users u
       LEFT JOIN profiles p ON u.id = p.user_id
@@ -205,89 +149,17 @@ router.get('/me', requireAuth, async (req, res) => {
   }
 });
 
-router.get('/me/consent', privacyActionLimiter, requireAuth, async (req, res) => {
+router.put('/tour-seen', userWriteLimiter, requireAuth, async (req, res) => {
   try {
-    const rows = await db.all(`
-      SELECT DISTINCT ON (consent_type)
-        consent_type, consent_status, source, preferences, created_at, withdrawn_at
-      FROM user_consents
-      WHERE user_id = ?
-      ORDER BY consent_type, created_at DESC
-    `, req.userId);
-
-    const consent = (rows || []).reduce((acc, row) => {
-      acc[row.consent_type] = {
-        status: row.consent_status,
-        source: row.source,
-        preferences: row.preferences,
-        updatedAt: row.created_at,
-        withdrawnAt: row.withdrawn_at
-      };
-      return acc;
-    }, {});
-
-    res.json({ success: true, data: { consent } });
+    await db.prepare('UPDATE users SET tour_seen = true WHERE id = ?').run(req.userId);
+    res.json({ success: true });
   } catch (error) {
-    logger.error(`[Users] Failed to fetch consent: ${error.message}`);
-    res.status(500).json({
-      success: false,
-      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch consent preferences' }
-    });
+    logger.error(`[Users] Failed to mark tour as seen: ${error.message}`);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update tour status' } });
   }
 });
 
-router.post('/me/consent', privacyActionLimiter, requireAuth, async (req, res) => {
-  try {
-    const { consentType, status, source = 'web_app', preferences = null } = req.body || {};
-    const allowedTypes = ['data_processing', 'cookies'];
-    const allowedStatuses = ['granted', 'denied', 'withdrawn'];
-
-    if (!allowedTypes.includes(consentType)) {
-      return res.status(400).json({
-        success: false,
-        error: { code: 'INVALID_CONSENT_TYPE', message: 'Invalid consent type' }
-      });
-    }
-    if (!allowedStatuses.includes(status)) {
-      return res.status(400).json({
-        success: false,
-        error: { code: 'INVALID_CONSENT_STATUS', message: 'Invalid consent status' }
-      });
-    }
-
-    const withdrawnAt = status === 'withdrawn' ? new Date().toISOString() : null;
-    const ipAddress = (req.headers['x-forwarded-for']?.split(',')?.[0] || req.ip || '').replace(/^::ffff:/, '');
-
-    const result = await db.run(
-      `INSERT INTO user_consents (user_id, consent_type, consent_status, source, preferences, ip_address, user_agent, withdrawn_at)
-       VALUES (?, ?, ?, ?, ?::jsonb, ?, ?, ?)`,
-      req.userId,
-      consentType,
-      status,
-      source,
-      preferences ? JSON.stringify(preferences) : null,
-      ipAddress,
-      req.headers['user-agent'] || null,
-      withdrawnAt
-    );
-
-    const latest = await db.get(
-      `SELECT id, consent_type, consent_status, source, preferences, created_at, withdrawn_at
-       FROM user_consents WHERE id = ?`,
-      result.lastInsertRowid
-    );
-
-    res.json({ success: true, data: { consent: latest } });
-  } catch (error) {
-    logger.error(`[Users] Failed to record consent: ${error.message}`);
-    res.status(500).json({
-      success: false,
-      error: { code: 'INTERNAL_ERROR', message: 'Failed to save consent preferences' }
-    });
-  }
-});
-
-router.get('/:id', requireAuth, async (req, res) => {
+router.get('/:id', userReadLimiter, requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const isAdmin = req.userRole === 'admin';
@@ -300,7 +172,7 @@ router.get('/:id', requireAuth, async (req, res) => {
     }
 
     const user = await db.prepare(`
-      SELECT u.id, u.email, u.name, u.role, u.created_at, u.updated_at,
+      SELECT u.id, u.email, u.name, u.role, u.created_at, u.updated_at, u.tour_seen,
              p.avatar_url, p.bio, p.phone, p.company, p.website, p.home_city, p.interests, p.travel_style
       FROM users u
       LEFT JOIN profiles p ON u.id = p.user_id
@@ -324,7 +196,7 @@ router.get('/:id', requireAuth, async (req, res) => {
   }
 });
 
-router.put('/:id', requireAuth, sanitizeAll(['name', 'bio', 'travel_style', 'phone', 'home_city']), async (req, res) => {
+router.put('/:id', userWriteLimiter, requireAuth, sanitizeAll(['name', 'bio', 'travel_style', 'phone', 'home_city']), async (req, res) => {
   try {
     const { id } = req.params;
     const isAdmin = req.userRole === 'admin';
@@ -427,7 +299,7 @@ router.put('/:id', requireAuth, sanitizeAll(['name', 'bio', 'travel_style', 'pho
   }
 });
 
-router.get('/:id/export', privacyActionLimiter, requireAuth, requireFeature(FEATURES.EXPORT_DATA), async (req, res) => {
+router.get('/:id/export', userReadLimiter, requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const isAdmin = req.userRole === 'admin';
@@ -551,7 +423,7 @@ router.get('/:id/export', privacyActionLimiter, requireAuth, requireFeature(FEAT
   }
 });
 
-router.delete('/:id', privacyActionLimiter, requireAuth, requireFeature(FEATURES.DELETE_DATA), async (req, res) => {
+router.delete('/:id', userWriteLimiter, requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { permanent } = req.query; // ?permanent=true for hard delete

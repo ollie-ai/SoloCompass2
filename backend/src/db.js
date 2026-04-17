@@ -221,6 +221,7 @@ async function initializeDatabase() {
         two_factor_enabled BOOLEAN DEFAULT false,
         failed_attempts INTEGER DEFAULT 0,
         locked_until TIMESTAMP,
+        tour_seen BOOLEAN DEFAULT false,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -837,6 +838,32 @@ async function initializeDatabase() {
         event_data TEXT,
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
+
+      -- Referral programme
+      CREATE TABLE IF NOT EXISTS referrals (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        code TEXT NOT NULL UNIQUE,
+        invites INTEGER DEFAULT 0,
+        reward_points INTEGER DEFAULT 0,
+        is_suspended BOOLEAN DEFAULT false,
+        suspended_at TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Referral claim log (one row per claimer — idempotency key)
+      CREATE TABLE IF NOT EXISTS referral_uses (
+        id SERIAL PRIMARY KEY,
+        code TEXT NOT NULL,
+        referrer_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        claimer_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        claimed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(claimer_user_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_referral_uses_code ON referral_uses(code);
+      CREATE INDEX IF NOT EXISTS idx_referral_uses_referrer ON referral_uses(referrer_user_id);
 
       -- Packing lists table
       CREATE TABLE IF NOT EXISTS packing_lists (

@@ -1,14 +1,16 @@
 import express from 'express';
-import {
-  getEmergencyNumbers,
-  getAllEmergencyNumbers,
-  isAvailable,
-  getEmergencyNumbersRefreshMetadata,
-  refreshEmergencyNumbersDataset,
-} from '../services/emergencyNumbersService.js';
-import logger from '../services/logger.js';
+import rateLimit from 'express-rate-limit';
+import { getEmergencyNumbers, getAllEmergencyNumbers, isAvailable } from '../services/emergencyNumbersService.js';
+import { getEmergencyDataRefreshStatus, maybeRefreshEmergencyData } from '../services/emergencyDataRefreshService.js';
+import { requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
+const refreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
 router.get('/refresh-status', (req, res) => {
   res.json({
@@ -55,6 +57,17 @@ router.get('/', async (req, res) => {
     logger.error(`[EmergencyNumbers] Error: ${error.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+
+router.get('/refresh-status', async (_req, res) => {
+  const status = await getEmergencyDataRefreshStatus();
+  res.json({ success: true, data: status });
+});
+
+router.post('/refresh', refreshLimiter, requireAdmin, async (_req, res) => {
+  const status = await maybeRefreshEmergencyData(true);
+  res.json({ success: true, data: status });
 });
 
 router.get('/:countryCode', async (req, res) => {

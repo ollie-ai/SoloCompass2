@@ -30,7 +30,7 @@ import {
 import toast from 'react-hot-toast';
 import Button from './Button.jsx';
 import api from '../lib/api';
-import ConfirmDialog from './ConfirmDialog';
+import { triggerHaptic } from '../hooks/useHaptics';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3005/api';
 
@@ -262,6 +262,7 @@ export default function SafetyCheckIn({ tripId, onClose }) {
   };
 
   const handleCheckIn = async (type) => {
+    triggerHaptic(type === 'emergency' ? [120, 80, 120] : [35]);
     setCheckInType(type);
     setShowConfirmModal(true);
   };
@@ -284,6 +285,7 @@ export default function SafetyCheckIn({ tripId, onClose }) {
       });
 
       if (response.data.success) {
+        triggerHaptic(checkInType === 'emergency' ? [200, 120, 200] : [45]);
         setSuccess(
           checkInType === 'emergency'
             ? 'Emergency alert sent! Contacts notified.'

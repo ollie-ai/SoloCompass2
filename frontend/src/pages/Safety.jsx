@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../lib/api';
+import { triggerHaptic } from '../hooks/useHaptics';
 import toast from 'react-hot-toast';
 import DashboardShell from '../components/dashboard/DashboardShell';
 import PageHeader from '../components/PageHeader';
@@ -295,6 +296,7 @@ export default function Safety() {
   };
 
   const handleCheckIn = async (type) => {
+    triggerHaptic(type === 'emergency' ? [120, 80, 120] : [35]);
     setCheckInType(type);
     setShowConfirmModal(true);
   };
@@ -374,6 +376,7 @@ export default function Safety() {
       });
       
       if (response.data.success) {
+        triggerHaptic(checkInType === 'emergency' ? [200, 120, 200] : [45]);
         setSuccess(
           checkInType === 'emergency'
             ? 'Emergency alert sent — contacts notified'

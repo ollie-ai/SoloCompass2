@@ -287,9 +287,10 @@ router.post('/register', [
     .matches(/[0-9]/).withMessage('Password must contain at least one number')
     .matches(/[!@#$%^&*(),.?":{}|<>]/).withMessage('Password must contain at least one special character'),
   body('name').optional().isLength({ max: 100 }).withMessage('Name must be less than 100 characters'),
+  body('referralCode').optional().matches(/^[0-9A-Fa-f]{8}$/).withMessage('Invalid referral code format'),
 ], handleValidationErrors, async (req, res) => {
   try {
-    const { email, password, name, dataProcessingConsent = true } = req.body;
+    const { email, password, name, referralCode } = req.body;
 
     const existingUser = await db.get('SELECT id FROM users WHERE email = ?', email);
     if (existingUser) {
@@ -313,7 +314,7 @@ router.post('/register', [
     const userId = result.lastInsertRowid;
     
     // Fetch user for token generation - explicitly select only needed columns to prevent exposing sensitive data
-    const user = await db.get('SELECT id, email, name, role, email_verified, is_premium, subscription_tier, premium_expires_at, created_at, theme_preference, admin_level FROM users WHERE id = ?', userId);
+    const user = await db.get('SELECT id, email, name, role, is_verified, is_premium, subscription_tier, premium_expires_at, created_at, theme_preference, admin_level, tour_seen FROM users WHERE id = ?', userId);
     const token = generateToken({ id: user.id, email: user.email, role: user.role });
     const refreshToken = generateRefreshToken({ id: user.id, email: user.email, role: user.role });
     const sessionId = uuidv4();
@@ -339,19 +340,32 @@ router.post('/register', [
       userId
     );
 
-    const consentIpAddress = (req.headers['x-forwarded-for']?.split(',')?.[0] || req.ip || '').replace(/^::ffff:/, '');
-    const consentStatus = dataProcessingConsent ? 'granted' : 'denied';
-    await db.run(
-      `INSERT INTO user_consents (user_id, consent_type, consent_status, source, preferences, ip_address, user_agent)
-       VALUES (?, ?, ?, ?, ?::jsonb, ?, ?)`,
-      userId,
-      'data_processing',
-      consentStatus,
-      'registration',
-      JSON.stringify({ legalBasis: 'contract', acceptedAtSignup: Boolean(dataProcessingConsent) }),
-      consentIpAddress,
-      req.headers['user-agent'] || null
-    );
+    // Auto-claim referral code if provided at registration (fire-and-forget; failure is non-blocking)
+    if (referralCode) {
+      try {
+        const normalised = referralCode.trim().toUpperCase();
+        const referrer = await db.get('SELECT user_id, is_suspended FROM referrals WHERE code = ?', normalised);
+        if (referrer && referrer.user_id !== userId && !referrer.is_suspended) {
+          const recentClaims = await db.get(
+            "SELECT COUNT(*) AS cnt FROM referral_uses WHERE referrer_user_id = ? AND claimed_at > NOW() - INTERVAL '24 hours'",
+            referrer.user_id
+          );
+          const recentCount = parseInt(recentClaims?.cnt ?? recentClaims?.count ?? 0, 10);
+          if (recentCount < 10) {
+            await db.run(
+              'INSERT INTO referral_uses (code, referrer_user_id, claimer_user_id) VALUES (?, ?, ?)',
+              normalised, referrer.user_id, userId
+            );
+            await db.run(
+              'UPDATE referrals SET invites = invites + 1, reward_points = reward_points + 100, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?',
+              referrer.user_id
+            );
+          }
+        }
+      } catch (refErr) {
+        logger.warn(`[Auth] Referral auto-claim failed for new user ${userId}: ${refErr.message}`);
+      }
+    }
 
     const isProd = process.env.NODE_ENV === 'production';
 
@@ -713,7 +727,7 @@ router.get('/me', async (req, res) => {
     }
 
     const decoded = jwt.verify(token, getSecret());
-    const user = await db.get('SELECT id, email, name, role, email_verified, is_premium, subscription_tier, premium_expires_at, created_at, theme_preference, admin_level FROM users WHERE id = ?', decoded.userId);
+    const user = await db.get('SELECT id, email, name, role, is_verified, is_premium, subscription_tier, premium_expires_at, created_at, theme_preference, admin_level, tour_seen FROM users WHERE id = ?', decoded.userId);
 
     if (!user) {
       return res.status(401).json({

@@ -8,6 +8,8 @@ import GlobalSearch from './GlobalSearch';
 import AppSidebar from './AppSidebar';
 import { useAuthStore } from '../stores/authStore';
 import { useEffect, useState } from 'react';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
+import FeatureTour from './tour/FeatureTour';
 
 // Pages that should NOT show the sidebar (public / auth pages)
 const NO_SIDEBAR_PATHS = [
@@ -34,8 +36,8 @@ const Layout = () => {
   }, [location.pathname, isLoaded]);
 
   const { isAuthenticated } = useAuthStore();
-  const isPublicPage = NO_SIDEBAR_PATHS.includes(location.pathname);
-  const showSidebar  = isAuthenticated && !isPublicPage;
+  const { isRefreshing } = usePullToRefresh(() => window.location.reload(), isAuthenticated);
+  const isPublicPage = ['/', '/login', '/register', '/about', '/features', '/safety-info', '/help', '/terms', '/privacy', '/cookies', '/contact', '/partnerships'].includes(location.pathname);
 
   return (
     <div className="min-h-screen flex flex-col bg-base-100 text-base-content transition-colors duration-300">
@@ -58,6 +60,8 @@ const Layout = () => {
           </motion.div>
         </AnimatePresence>
       </main>
+      {isRefreshing && (<div className="fixed top-16 left-1/2 -translate-x-1/2 z-[1100] rounded-full bg-base-100 border border-base-300 px-3 py-1 text-xs">Refreshing...</div>)}
+      <FeatureTour />
       <AIChat />
       {isPublicPage && <Footer />}
     </div>

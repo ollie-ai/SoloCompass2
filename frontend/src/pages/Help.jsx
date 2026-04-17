@@ -96,10 +96,7 @@ const DEFAULT_TUTORIALS = [
 const Help = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [faqs, setFaqs] = useState([]);
-  const [guides, setGuides] = useState(DEFAULT_GUIDES);
-  const [tutorials, setTutorials] = useState(DEFAULT_TUTORIALS);
-  const [feedback, setFeedback] = useState({ rating: 0, message: '', email: '', screenshotName: '', screenshotDataUrl: '' });
-  const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -107,21 +104,20 @@ const Help = () => {
     const fetchHelpContent = async () => {
       try {
         setLoading(true);
-        const [faqResponse, guidesResponse, tutorialsResponse] = await Promise.all([
-          api.get('/help/faqs').catch(() => ({ data: {} })),
-          api.get('/help/guides').catch(() => ({ data: {} })),
-          api.get('/help/tutorials').catch(() => ({ data: {} })),
-        ]);
-
-        const faqData = faqResponse.data?.data || faqResponse.data?.faqs || (Array.isArray(faqResponse.data) ? faqResponse.data : []);
-        const guidesData = guidesResponse.data?.data || [];
-        const tutorialsData = tutorialsResponse.data?.data || [];
-
-        setFaqs(Array.isArray(faqData) ? faqData : []);
-        setGuides(Array.isArray(guidesData) && guidesData.length > 0 ? guidesData : DEFAULT_GUIDES);
-        setTutorials(Array.isArray(tutorialsData) && tutorialsData.length > 0 ? tutorialsData : DEFAULT_TUTORIALS);
+        const [faqResponse, articlesResponse] = await Promise.all([api.get('/help/faqs'), api.get('/help/articles')]);
+        const response = faqResponse;
+        if (response.data?.data) {
+          setFaqs(response.data.data);
+        } else if (response.data?.faqs) {
+          setFaqs(response.data.faqs);
+        } else if (Array.isArray(response.data)) {
+          setFaqs(response.data);
+        }
+        if (articlesResponse.data?.data) {
+          setArticles(articlesResponse.data.data);
+        }
       } catch (err) {
-        console.error('Failed to fetch help content:', err);
+        console.error('Failed to fetch Help Center data:', err);
       } finally {
         setLoading(false);
       }
@@ -301,6 +297,26 @@ const Help = () => {
               </div>
             </a>
           </div>
+
+          {articles.length > 0 && (
+            <div className="mb-12">
+              <h2 className="text-xl font-black mb-4">Help articles</h2>
+              <div className="grid md:grid-cols-2 gap-4">
+                {articles.map((article) => (
+                  <div key={article.id} className="glass-card p-5 rounded-xl">
+                    <p className="text-xs uppercase tracking-wider text-brand-vibrant font-bold mb-1">{article.category}</p>
+                    <h3 className="font-bold text-base-content mb-2">{article.title}</h3>
+                    <p className="text-sm text-base-content/70">{article.summary}</p>
+                    {article.updatedAt && (
+                      <p className="mt-3 text-xs text-base-content/40 font-medium">
+                        Updated {new Date(article.updatedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Emergency guidance */}
           <div className="mb-12 p-5 bg-warning/10 border border-warning/30 rounded-xl">

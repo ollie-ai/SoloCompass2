@@ -1,44 +1,53 @@
 import express from 'express';
+import { PLAN_TIERS, FEATURES } from '../middleware/paywall.js';
 
 const router = express.Router();
 
 const PLAN_FEATURES = {
-  free: [
-    'reviews',
-    'packing',
-    'weather',
-    'checkin',
+  [PLAN_TIERS.EXPLORER]: [
+    FEATURES.CREATE_TRIPS,
+    FEATURES.ITINERARY_TIMELINE,
+    FEATURES.MANUAL_CHECKIN,
+    FEATURES.SOS_BUTTON,
+    FEATURES.ADVISORIES
   ],
-  explorer: [
-    'reviews',
-    'packing',
-    'weather',
-    'checkin',
-    'budget',
-    'flights',
-    'matching',
+  [PLAN_TIERS.GUARDIAN]: [
+    FEATURES.CREATE_TRIPS,
+    FEATURES.ITINERARY_TIMELINE,
+    FEATURES.MANUAL_CHECKIN,
+    FEATURES.SCHEDULED_CHECKIN,
+    FEATURES.MISSED_CHECKIN_ESCALATION,
+    FEATURES.EMERGENCY_CONTACTS,
+    FEATURES.SOS_BUTTON,
+    FEATURES.ADVISORIES,
+    FEATURES.PDF_EXPORT
   ],
-  pro: [
-    'reviews',
-    'packing',
-    'weather',
-    'checkin',
-    'budget',
-    'flights',
-    'matching',
-    'guardian',
-    'priority_support',
-    'advanced_safety_alerts',
-  ],
+  [PLAN_TIERS.NAVIGATOR]: [
+    FEATURES.CREATE_TRIPS,
+    FEATURES.ITINERARY_TIMELINE,
+    FEATURES.MANUAL_CHECKIN,
+    FEATURES.SCHEDULED_CHECKIN,
+    FEATURES.MISSED_CHECKIN_ESCALATION,
+    FEATURES.EMERGENCY_CONTACTS,
+    FEATURES.SOS_BUTTON,
+    FEATURES.ADVISORIES,
+    FEATURES.PDF_EXPORT,
+    FEATURES.AI_CHAT,
+    FEATURES.AI_DESTINATION_GUIDE,
+    FEATURES.BUDDY_DISCOVERY,
+    FEATURES.CONNECTIONS
+  ]
 };
 
 router.get('/', (req, res) => {
   res.json({
     success: true,
     data: {
-      plans: PLAN_FEATURES,
-      generatedAt: new Date().toISOString(),
-    },
+      plans: Object.entries(PLAN_FEATURES).map(([plan, featureList]) => ({
+        plan,
+        features: featureList
+      }))
+    }
   });
 });
 

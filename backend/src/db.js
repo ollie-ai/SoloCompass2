@@ -771,6 +771,17 @@ async function initializeDatabase() {
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
+
+      -- Referral programme
+      CREATE TABLE IF NOT EXISTS referrals (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        code TEXT NOT NULL UNIQUE,
+        invites INTEGER DEFAULT 0,
+        reward_points INTEGER DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
       -- Packing lists table
       CREATE TABLE IF NOT EXISTS packing_lists (
         id SERIAL PRIMARY KEY,

@@ -1,5 +1,6 @@
 import express from 'express';
 import { getEmergencyNumbers, getAllEmergencyNumbers, isAvailable } from '../services/emergencyNumbersService.js';
+import { getEmergencyDataRefreshStatus, maybeRefreshEmergencyData } from '../services/emergencyDataRefreshService.js';
 
 const router = express.Router();
 
@@ -28,6 +29,17 @@ router.get('/', async (req, res) => {
     console.error('[EmergencyNumbers] Error:', error.message);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+
+router.get('/refresh-status', async (_req, res) => {
+  const status = await getEmergencyDataRefreshStatus();
+  res.json({ success: true, data: status });
+});
+
+router.post('/refresh', async (_req, res) => {
+  const status = await maybeRefreshEmergencyData(true);
+  res.json({ success: true, data: status });
 });
 
 router.get('/:countryCode', async (req, res) => {

@@ -19,6 +19,7 @@ const resolveIcon = (icon) => {
 const Help = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [faqs, setFaqs] = useState([]);
+  const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,7 +27,8 @@ const Help = () => {
     const fetchFaqs = async () => {
       try {
         setLoading(true);
-        const response = await api.get('/help/faqs');
+        const [faqResponse, articlesResponse] = await Promise.all([api.get('/help/faqs'), api.get('/help/articles')]);
+        const response = faqResponse;
         if (response.data?.data) {
           setFaqs(response.data.data);
         } else if (response.data?.faqs) {
@@ -34,8 +36,11 @@ const Help = () => {
         } else if (Array.isArray(response.data)) {
           setFaqs(response.data);
         }
+        if (articlesResponse.data?.data) {
+          setArticles(articlesResponse.data.data);
+        }
       } catch (err) {
-        console.error('Failed to fetch FAQs:', err);
+        console.error('Failed to fetch Help Center data:', err);
       } finally {
         setLoading(false);
       }
@@ -179,6 +184,21 @@ const Help = () => {
               </div>
             </a>
           </div>
+
+          {articles.length > 0 && (
+            <div className="mb-12">
+              <h2 className="text-xl font-black mb-4">Help articles</h2>
+              <div className="grid md:grid-cols-2 gap-4">
+                {articles.map((article) => (
+                  <div key={article.id} className="glass-card p-5 rounded-xl">
+                    <p className="text-xs uppercase tracking-wider text-brand-vibrant font-bold mb-1">{article.category}</p>
+                    <h3 className="font-bold text-base-content mb-2">{article.title}</h3>
+                    <p className="text-sm text-base-content/70">{article.summary}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Emergency guidance */}
           <div className="mb-12 p-5 bg-warning/10 border border-warning/30 rounded-xl">

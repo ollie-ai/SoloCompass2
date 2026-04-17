@@ -6,6 +6,8 @@ import AIChat from './AIChat';
 import AnnouncementBanner from './AnnouncementBanner';
 import { useAuthStore } from '../stores/authStore';
 import { useEffect, useState } from 'react';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
+import FeatureTour from './tour/FeatureTour';
 
 const Layout = () => {
   const location = useLocation();
@@ -24,6 +26,7 @@ const Layout = () => {
   }, [location.pathname, isLoaded]);
 
   const { isAuthenticated } = useAuthStore();
+  const { isRefreshing } = usePullToRefresh(() => window.location.reload(), isAuthenticated);
   const isPublicPage = ['/', '/login', '/register', '/about', '/features', '/safety-info', '/help', '/terms', '/privacy', '/cookies', '/contact', '/partnerships'].includes(location.pathname);
 
   return (
@@ -47,6 +50,8 @@ const Layout = () => {
           </motion.div>
         </AnimatePresence>
       </main>
+      {isRefreshing && (<div className="fixed top-16 left-1/2 -translate-x-1/2 z-[1100] rounded-full bg-base-100 border border-base-300 px-3 py-1 text-xs">Refreshing...</div>)}
+      <FeatureTour />
       <AIChat />
       {isPublicPage && <Footer />}
     </div>

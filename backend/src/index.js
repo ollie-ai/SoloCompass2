@@ -55,6 +55,8 @@ async function bootstrap() {
     const { initWebSocketServer } = await import('./services/websocket.js');
     const { startScheduledCheckInMonitor } = await import('./services/checkinMonitor.js');
     const { generateSitemap } = await import('./services/sitemapService.js');
+    const { startEmergencyDataRefreshSchedule } = await import('./services/emergencyDataRefreshService.js');
+    const { captureBackendError } = await import('./services/errorTrackingService.js');
 
     // route imports
     const { default: authRoutes } = await import('./routes/auth.js');
@@ -104,6 +106,9 @@ const { default: countriesRoutes } = await import('./routes/countries.js');
     const { default: guardianRoutes } = await import('./routes/guardian.js');
     const { default: callsRoutes } = await import('./routes/calls.js');
     const { default: esimRoutes } = await import('./routes/esim.js');
+    const { default: featuresRoutes } = await import('./routes/features.js');
+    const { default: referralsRoutes } = await import('./routes/referrals.js');
+    const { default: apiV1Routes } = await import('./routes/apiV1.js');
 
     const app = express();
     const server = createServer(app);
@@ -200,8 +205,11 @@ const { default: countriesRoutes } = await import('./routes/countries.js');
     app.use('/api/calls', callsRoutes);
     app.use('/api/esim', esimRoutes);
     app.use('/api/translate', translateRoutes);
+    app.use('/api/features', featuresRoutes);
+    app.use('/api/referrals', referralsRoutes);
     app.use('/api/countries', countriesRoutes);
     app.use('/api/cities', citiesRoutes);
+    app.use('/api/v1', apiV1Routes);
 
     // Seed test events for admin (development only)
     if (process.env.NODE_ENV !== 'production') {
@@ -258,6 +266,7 @@ const { default: countriesRoutes } = await import('./routes/countries.js');
     // global error handler
     app.use((err, req, res, next) => {
         logger.error(`[Error] ${req.id} - ${err.message}\n${err.stack}`);
+        captureBackendError(err, { requestId: req.id, path: req.originalUrl, method: req.method }).catch(() => {});
         res.status(err.status || 500).json({ success: false, error: { message: 'Something went wrong', requestId: req.id } });
     });
 
@@ -265,6 +274,7 @@ const { default: countriesRoutes } = await import('./routes/countries.js');
         console.log(`\x1b[32m SoloCompass Core Online :: Listening on Port ${PORT} \x1b[0m`);
         initWebSocketServer(server);
         startScheduledCheckInMonitor();
+        startEmergencyDataRefreshSchedule();
         generateSitemap().catch(err => logger.error(`[SEO] Sitemap fail: ${err.message}`));
         
         // Automated Production Seeding (Phase 5) - Development only

@@ -2,6 +2,8 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { ErrorBoundary } from 'react-error-boundary'
 import App from './App.jsx'
+import { I18nProvider } from './i18n/I18nProvider'
+import { trackFrontendError } from './lib/errorTracking'
 import './index.css'
 
 function ErrorFallback({ error, resetErrorBoundary }) {
@@ -43,11 +45,14 @@ document.getElementById('main-content')?.classList.add('visible');
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <ErrorBoundary
-      FallbackComponent={ErrorFallback}
-      onReset={() => window.location.reload()}
-    >
-      <App />
-    </ErrorBoundary>
+    <I18nProvider>
+      <ErrorBoundary
+        FallbackComponent={ErrorFallback}
+        onReset={() => window.location.reload()}
+        onError={(error, info) => trackFrontendError(error, { componentStack: info?.componentStack })}
+      >
+        <App />
+      </ErrorBoundary>
+    </I18nProvider>
   </React.StrictMode>,
 )

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Wallet, Plus, Loader2, Trash2, Edit2, X, TrendingUp, TrendingDown } from 'lucide-react';
-import api from '../lib/api';
+import { Wallet, Plus, Loader2, Trash2, Edit2, X, TrendingUp, TrendingDown, Download } from 'lucide-react';
+import api, { exportBudgetCSV } from '../lib/api';
 import toast from 'react-hot-toast';
 import { getErrorMessage } from '../lib/utils';
+import BudgetAlertBanner from './trip/BudgetAlertBanner';
+import DailySpendCard from './trip/DailySpendCard';
 
 const CATEGORIES = [
   { key: 'accommodation', label: 'Accommodation', icon: '🏨' },
@@ -173,6 +175,20 @@ const BudgetTracker = ({ tripId, tripName, onClose }) => {
     }
   };
 
+  const handleExportCSV = async () => {
+    try {
+      const blob = await exportBudgetCSV(tripId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(tripName || 'trip').replace(/\s+/g, '_')}_budget.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error('Failed to export budget');
+    }
+  };
+
   const getCategoryInfo = (categoryKey) => {
     return CATEGORIES.find(c => c.key === categoryKey) || { key: categoryKey, label: categoryKey, icon: '📦' };
   };
@@ -260,6 +276,13 @@ const BudgetTracker = ({ tripId, tripName, onClose }) => {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={handleExportCSV}
+            title="Export CSV"
+            className="p-2 text-base-content/40 hover:text-base-content hover:bg-base-200 rounded-xl transition-colors"
+          >
+            <Download size={18} />
+          </button>
+          <button
             onClick={() => setShowSettings(true)}
             className="p-2 text-base-content/40 hover:text-base-content hover:bg-base-200 rounded-xl transition-colors"
           >
@@ -307,6 +330,28 @@ const BudgetTracker = ({ tripId, tripName, onClose }) => {
           <span className="text-sm font-bold text-success">
             +{formatCurrency(budget.totalIncome, budget.currency)} income
           </span>
+        </div>
+      )}
+
+      {/* Budget Alert Banner */}
+      <div className="mb-4">
+        <BudgetAlertBanner
+          totalBudget={budget.totalBudget}
+          totalSpent={budget.totalSpent}
+          currency={budget.currency}
+        />
+      </div>
+
+      {/* Daily Spend Card */}
+      {(budget.dailyAverage !== null || budget.dailyTarget !== null) && (
+        <div className="mb-4">
+          <DailySpendCard
+            dailyAverage={budget.dailyAverage}
+            dailyTarget={budget.dailyTarget}
+            currency={budget.currency}
+            daysElapsed={budget.daysElapsed}
+            tripDays={budget.tripDays}
+          />
         </div>
       )}
 

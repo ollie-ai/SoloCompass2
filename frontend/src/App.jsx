@@ -58,6 +58,10 @@ const Checkout = lazy(() => import('./pages/Checkout'));
 const GuardianAcknowledge = lazy(() => import('./pages/GuardianAcknowledge'));
 const GuardianDecline = lazy(() => import('./pages/GuardianDecline'));
 const SharedTrip = lazy(() => import('./pages/SharedTrip'));
+const TravelJournal = lazy(() => import('./pages/TravelJournal'));
+const TripItineraryPage = lazy(() => import('./pages/TripItineraryPage'));
+const TripPackingPage = lazy(() => import('./pages/TripPackingPage'));
+const TripSharePage = lazy(() => import('./pages/TripSharePage'));
 const BottomNav = lazy(() => import('./components/BottomNav'));
 const Journal = lazy(() => import('./pages/Journal'));
 const Budget = lazy(() => import('./pages/Budget'));
@@ -319,6 +323,38 @@ function App() {
               element={
                 <ProtectedRoute>
                   <TripDetail />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/trips/:id/itinerary"
+              element={
+                <ProtectedRoute>
+                  <TripItineraryPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/trips/:id/packing"
+              element={
+                <ProtectedRoute>
+                  <TripPackingPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/trips/:id/share"
+              element={
+                <ProtectedRoute>
+                  <TripSharePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/trips/:id/journal"
+              element={
+                <ProtectedRoute>
+                  <TravelJournal />
                 </ProtectedRoute>
               }
             />

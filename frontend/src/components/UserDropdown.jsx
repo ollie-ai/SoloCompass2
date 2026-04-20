@@ -9,6 +9,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Settings, LogOut, Crown, CreditCard, Plus, Shield, LayoutDashboard, HelpCircle, ChevronDown, Sun, Moon
 } from 'lucide-react';
+import { SubscriptionStatusBadge } from './billing/SubscriptionStatusBadge';
+import { normalizeSubscriptionTier } from '../lib/subscriptionAccess';
 
 const EASE = [0.16, 1, 0.3, 1];
 
@@ -155,13 +157,11 @@ const UserDropdown = forwardRef(({ user, onLogout, hasNotifications = false, act
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-base-content truncate text-sm leading-tight">{user?.name || 'Explorer'}</p>
                       <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${
-                          user?.subscription_tier === 'guardian' ? 'bg-primary/10 text-primary' :
-                          user?.subscription_tier === 'navigator' ? 'bg-purple-500/10 text-purple-400' :
-                          'bg-base-300/50 text-base-content/40'
-                        }`}>
-                          {user?.subscription_tier === 'guardian' ? 'Guardian' : user?.subscription_tier === 'navigator' ? 'Navigator' : 'Explorer'}
-                        </span>
+                        <SubscriptionStatusBadge
+                          tier={normalizeSubscriptionTier(user)}
+                          status={user?.stripe_status}
+                          size="xs"
+                        />
                         {isPremium && <span className="text-[10px] text-base-content/40 font-medium">• Pro Account</span>}
                       </div>
                     </div>

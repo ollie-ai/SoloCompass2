@@ -4,6 +4,7 @@ import { FEATURES, FEATURE_LABELS } from '../config/features';
 import { Lock } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { hasMinimumTier } from '../lib/subscriptionAccess';
+import { UpgradeButton } from './billing/UpgradeButton';
 
 function FeatureGate({ 
   feature, 
@@ -27,20 +28,25 @@ function FeatureGate({
     return null;
   }
 
+  const isTierLocked = isEnabled && !hasRequiredTier && requiredTier;
+
   return (
     <div className="relative group cursor-not-allowed">
-      <div className="absolute inset-0 bg-base-200/80 backdrop-blur-[1px] rounded-xl z-10 flex flex-col items-center justify-center">
+      <div className="absolute inset-0 bg-base-200/80 backdrop-blur-[1px] rounded-xl z-10 flex flex-col items-center justify-center gap-3 p-4">
         <div className="flex items-center gap-2 px-4 py-2 bg-base-200 rounded-full border border-base-300">
           <Lock size={14} className="text-base-content/40" />
           <span className="text-xs font-black uppercase tracking-widest text-base-content/60">
-            {requiredTier ? `Requires ${requiredTier}` : 'Coming Soon'}
+            {isTierLocked ? `Requires ${requiredTier}` : 'Coming Soon'}
           </span>
         </div>
-        <p className="mt-3 text-sm font-medium text-base-content/40 max-w-[200px] text-center">
-          {lockReason || (requiredTier
+        <p className="text-sm font-medium text-base-content/40 max-w-[200px] text-center">
+          {lockReason || (isTierLocked
             ? `${featureLabel} is available on ${requiredTier} and above`
             : `${featureLabel} feature is under development`)}
         </p>
+        {isTierLocked && (
+          <UpgradeButton plan={requiredTier === 'navigator' ? 'navigator' : 'guardian'} size="sm" />
+        )}
       </div>
       <div className="opacity-50 pointer-events-none">
         {children}

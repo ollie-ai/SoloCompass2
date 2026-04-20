@@ -1,8 +1,10 @@
 import { motion } from 'framer-motion';
-import { CreditCard, ArrowUpRight, Download, Trash2, AlertTriangle, RotateCcw } from 'lucide-react';
+import { CreditCard, Download, Trash2, AlertTriangle, RotateCcw } from 'lucide-react';
 import BillingHistory from '../BillingHistory';
 import TokenDashboard from '../TokenDashboard';
 import CurrentPlanCard from '../billing/CurrentPlanCard';
+import { UpgradeButton } from '../billing/UpgradeButton';
+import { BillingPortalLink } from '../billing/BillingPortalLink';
 
 const EASE = [0.16, 1, 0.3, 1];
 const cardClass = "glass-card p-6 rounded-3xl border border-base-300/50";
@@ -41,17 +43,8 @@ const BillingTab = ({
       <CurrentPlanCard />
 
       {subscriptionStatus?.isPremium && (
-        <div className="flex gap-3">
-          {subscriptionStatus?.stripePortalUrl && (
-            <a
-              href={subscriptionStatus.stripePortalUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-4 py-2 rounded-xl font-bold text-sm border border-base-300 text-base-content/80 hover:bg-base-200 transition-all inline-flex items-center gap-1.5"
-            >
-              Manage subscription <ArrowUpRight size={14} />
-            </a>
-          )}
+        <div className="flex gap-3 flex-wrap">
+          <BillingPortalLink portalUrl={subscriptionStatus?.stripePortalUrl} />
           {!subscriptionStatus?.stripeStatus?.cancelAtPeriodEnd && (
             <button
               onClick={handleCancelSubscription}
@@ -65,34 +58,13 @@ const BillingTab = ({
       )}
 
       {!subscriptionStatus?.isPremium && (
-        <div className="grid gap-2">
-          <button
-            onClick={() => navigate('/?upgrade=guardian')}
-            className="p-5 rounded-xl bg-gradient-to-br from-[#10b981]/5 to-[#10b981]/10 border border-[#10b981]/20 hover:border-[#10b981]/40 transition-all text-left group relative overflow-hidden"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <h5 className="font-black text-[#10b981] text-lg">Guardian</h5>
-                <p className="text-xs text-base-content/60 font-bold uppercase tracking-tight">£4.99/month — Most Popular</p>
-              </div>
-              <ArrowUpRight size={20} className="text-[#10b981]/50 group-hover:text-[#10b981] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
-            </div>
-            <p className="text-sm text-base-content/80 font-medium leading-tight">Unlimited AI itineraries, scheduled check-ins, Safe-Return Timer, and safe haven locator.</p>
-          </button>
-
-          <button
-            onClick={() => navigate('/?upgrade=navigator')}
-            className="p-5 rounded-xl bg-[#0ea5e9]/5 border border-[#0ea5e9]/20 hover:border-[#0ea5e9]/40 transition-all text-left group"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <h5 className="font-black text-[#0ea5e9] text-lg">Navigator</h5>
-                <p className="text-xs text-base-content/60 font-bold uppercase tracking-tight">£9.99/month — Founding Price</p>
-              </div>
-              <ArrowUpRight size={20} className="text-[#0ea5e9]/50 group-hover:text-[#0ea5e9] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
-            </div>
-            <p className="text-sm text-base-content/80 font-medium leading-tight">Everything in Guardian + AI destination chat, AI safety advice, and priority support.</p>
-          </button>
+        <div className="flex flex-col gap-3 p-5 rounded-2xl bg-base-200/50 border border-base-300/50">
+          <p className="text-sm font-bold text-base-content/60">Upgrade to unlock all features</p>
+          <div className="flex gap-3 flex-wrap">
+            <UpgradeButton plan="guardian" size="md">Upgrade to Guardian — £4.99/mo</UpgradeButton>
+            <UpgradeButton plan="navigator" size="md" variant="outline">Navigator — £9.99/mo</UpgradeButton>
+          </div>
+          <p className="text-xs text-base-content/40 font-medium">Guardian: Unlimited AI, scheduled check-ins, Safe-Return Timer. Navigator: Everything + AI safety advice & priority support.</p>
         </div>
       )}
 

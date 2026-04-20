@@ -160,16 +160,14 @@ const PlanningDashboard = ({ trip = null, alerts = [], stats = {}, loading = fal
           />
         </CollapsibleWidget>
 
-        {trip?.budget && (
-          <CollapsibleWidget
-            key="budget" title="Budget Outlook" icon={DollarSign}
-            expanded={widgetState.budget?.expanded} collapsible={true} hideable={true} hidden={widgetState.budget?.hidden}
-            onToggleExpand={() => toggleExpand('budget')} onHide={() => toggleHide('budget')} accentColor="emerald"
-            draggable={true}
-          >
-            <BudgetSnapshotWidget tripId={trip?.id} budget={trip?.budget} />
-          </CollapsibleWidget>
-        )}
+        <CollapsibleWidget
+          key="budget" title="Budget Outlook" icon={DollarSign}
+          expanded={widgetState.budget?.expanded} collapsible={true} hideable={true} hidden={widgetState.budget?.hidden}
+          onToggleExpand={() => toggleExpand('budget')} onHide={() => toggleHide('budget')} accentColor="emerald"
+          draggable={true}
+        >
+          <BudgetSnapshotWidget tripId={trip?.id} budget={trip?.budget || null} loading={loading} />
+        </CollapsibleWidget>
 
         <CollapsibleWidget
           key="accommodation" title="Accommodation" icon={MapPin}
@@ -186,7 +184,7 @@ const PlanningDashboard = ({ trip = null, alerts = [], stats = {}, loading = fal
           onToggleExpand={() => toggleExpand('bookings')} onHide={() => toggleHide('bookings')} accentColor="emerald"
           draggable={true}
         >
-          <BookingsCard tripId={trip?.id} bookings={trip?.bookings} showHeading={false} loading={loading} />
+          <BookingsCard tripId={trip?.id} bookings={trip?.bookings || []} showHeading={false} loading={loading} />
         </CollapsibleWidget>
 
         <CollapsibleWidget

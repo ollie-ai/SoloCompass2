@@ -214,16 +214,14 @@ const LiveTripDashboard = ({ trip = null, alerts = [], stats = {}, safetyData = 
           <AccommodationCard tripId={trip?.id} accommodation={trip?.accommodation} showHeading={false} loading={loading} />
         </CollapsibleWidget>
 
-        {trip?.bookings?.length > 0 && (
-          <CollapsibleWidget
-            key="bookings" title="Bookings" icon={Calendar}
-            expanded={widgetState.bookings?.expanded} collapsible={true} hideable={true} hidden={widgetState.bookings?.hidden}
-            onToggleExpand={() => toggleExpand('bookings')} onHide={() => toggleHide('bookings')}
-            draggable={true}
-          >
-            <BookingsCard tripId={trip?.id} bookings={trip?.bookings} showHeading={false} loading={loading} />
-          </CollapsibleWidget>
-        )}
+        <CollapsibleWidget
+          key="bookings" title="Bookings" icon={Calendar}
+          expanded={widgetState.bookings?.expanded} collapsible={true} hideable={true} hidden={widgetState.bookings?.hidden}
+          onToggleExpand={() => toggleExpand('bookings')} onHide={() => toggleHide('bookings')}
+          draggable={true}
+        >
+          <BookingsCard tripId={trip?.id} bookings={trip?.bookings || []} showHeading={false} loading={loading} />
+        </CollapsibleWidget>
 
         <CollapsibleWidget
           key="documents" title="Documents" icon={CheckCircle}
@@ -234,16 +232,14 @@ const LiveTripDashboard = ({ trip = null, alerts = [], stats = {}, safetyData = 
           <DocumentsCard tripId={trip?.id} documents={trip?.documents} showHeading={false} loading={loading} />
         </CollapsibleWidget>
 
-        {trip?.budget && (
-          <CollapsibleWidget
-            key="budget" title="Budget" icon={Wallet}
-            expanded={widgetState.budget?.expanded} collapsible={true} hideable={true} hidden={widgetState.budget?.hidden}
-            onToggleExpand={() => toggleExpand('budget')} onHide={() => toggleHide('budget')} accentColor="emerald"
-            draggable={true}
-          >
-            <BudgetSnapshotWidget tripId={trip?.id} budget={trip?.budget} loading={loading} />
-          </CollapsibleWidget>
-        )}
+        <CollapsibleWidget
+          key="budget" title="Budget" icon={Wallet}
+          expanded={widgetState.budget?.expanded} collapsible={true} hideable={true} hidden={widgetState.budget?.hidden}
+          onToggleExpand={() => toggleExpand('budget')} onHide={() => toggleHide('budget')} accentColor="emerald"
+          draggable={true}
+        >
+          <BudgetSnapshotWidget tripId={trip?.id} budget={trip?.budget || null} loading={loading} />
+        </CollapsibleWidget>
       </DashboardModuleGrid>
     </div>
   )

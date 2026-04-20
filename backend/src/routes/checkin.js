@@ -6,7 +6,6 @@ import { requireFeature, getUserPlan, FEATURES, PLAN_TIERS } from '../middleware
 import { notifyEmergencyContacts, createNotification } from '../services/notificationService.js';
 import { broadcastToUser } from '../services/websocket.js';
 import logger from '../services/logger.js';
-import { requireFeature, FEATURES } from '../middleware/paywall.js';
 
 const router = express.Router();
 

@@ -83,4 +83,5 @@ export function invalidateFlagCache() {
   cacheExpiry = 0;
 }
 
+export { getAllFlags };
 export default { evaluateFlag, invalidateFlagCache, getAllFlags };

@@ -5,9 +5,12 @@
  * a single bad actor cannot exhaust quota for other users.
  */
 
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
-const userKeyGenerator = (req) => String(req.userId || req.ip);
+const userKeyGenerator = (req) => {
+  if (req.userId) return String(req.userId);
+  return ipKeyGenerator(req);
+};
 
 /**
  * General API limiter — 300 req / 15 min per user.

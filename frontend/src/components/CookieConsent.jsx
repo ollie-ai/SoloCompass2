@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ShieldCheck, X, Cookie, Settings, Check } from 'lucide-react';
 import Button from './Button';
 import { Link } from 'react-router-dom';
@@ -16,15 +17,21 @@ const CookieConsent = () => {
   });
   const { isAuthenticated } = useAuthStore();
 
-  const persistConsent = async (status, prefs) => {
-    if (!isAuthenticated) return;
+  const persistConsent = async (prefsOrStatus, prefs) => {
     try {
-      await api.post('/users/me/consent', {
-        consentType: 'cookies',
-        status,
-        source: 'cookie_banner',
-        preferences: prefs
-      });
+      const nextPreferences = typeof prefsOrStatus === 'object' ? prefsOrStatus : prefs;
+      if (!nextPreferences) return;
+      if (isAuthenticated) {
+        await api.post('/users/me/consent', {
+          consentType: 'cookies',
+          status: typeof prefsOrStatus === 'string' ? prefsOrStatus : (nextPreferences.analytics || nextPreferences.marketing ? 'granted' : 'denied'),
+          source: 'cookie_banner',
+          preferences: nextPreferences
+        });
+      }
+      await api.post('/v1/consents', { consentType: 'cookie_analytics', granted: !!nextPreferences.analytics, source: 'cookie_banner' });
+      await api.post('/v1/consents', { consentType: 'cookie_marketing', granted: !!nextPreferences.marketing, source: 'cookie_banner' });
+      await api.post('/v1/consents', { consentType: 'data_processing', granted: true, source: 'cookie_banner' });
     } catch {
       // Silent by design to avoid blocking UX
     }
@@ -42,16 +49,6 @@ const CookieConsent = () => {
     }
   }, []);
 
-  const persistConsent = async (nextPreferences) => {
-    try {
-      await api.post('/v1/consents', { consentType: 'cookie_analytics', granted: !!nextPreferences.analytics, source: 'cookie_banner' });
-      await api.post('/v1/consents', { consentType: 'cookie_marketing', granted: !!nextPreferences.marketing, source: 'cookie_banner' });
-      await api.post('/v1/consents', { consentType: 'data_processing', granted: true, source: 'cookie_banner' });
-    } catch {
-      // no-op for guests / unauthenticated flows
-    }
-  };
-
   const acceptAll = () => {
     const fullConsent = {
       essential: true,
@@ -61,10 +58,9 @@ const CookieConsent = () => {
     localStorage.setItem('cookie-consent', 'all');
     localStorage.setItem('cookie-preferences', JSON.stringify(fullConsent));
     setPreferences(fullConsent);
-    persistConsent(fullConsent);
+    persistConsent('granted', fullConsent);
     setShow(false);
     setShowPreferences(false);
-    persistConsent('granted', fullConsent);
   };
 
   const acceptEssential = () => {
@@ -76,20 +72,18 @@ const CookieConsent = () => {
     localStorage.setItem('cookie-consent', 'essential');
     localStorage.setItem('cookie-preferences', JSON.stringify(essentialOnly));
     setPreferences(essentialOnly);
-    persistConsent(essentialOnly);
+    persistConsent('denied', essentialOnly);
     setShow(false);
     setShowPreferences(false);
-    persistConsent('denied', essentialOnly);
   };
 
   const savePreferences = () => {
     localStorage.setItem('cookie-consent', 'custom');
     localStorage.setItem('cookie-preferences', JSON.stringify(preferences));
-    persistConsent(preferences);
-    setShow(false);
-    setShowPreferences(false);
     const hasOptionalConsent = preferences.analytics || preferences.marketing;
     persistConsent(hasOptionalConsent ? 'granted' : 'denied', preferences);
+    setShow(false);
+    setShowPreferences(false);
   };
 
   const togglePreference = (key) => {

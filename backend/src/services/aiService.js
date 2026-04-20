@@ -303,13 +303,21 @@ export function getFallbackItinerary(destination, days) {
   };
 }
 
+export const callAnthropic = callClaude;
+export const callAI = callAzureOpenAI;
+
+export async function getAIUsageStats(db, userId) {
+  return { total_requests: 0, tokens_used: 0, userId };
+}
+
 export default {
   callAzureOpenAI,
   callOpenAIDirect,
-  callAnthropic,
-  callAI,
+  callClaude,
+  callAnthropic: callClaude,
+  callAI: callAzureOpenAI,
   getAIUsageStats,
   getFallbackResponse,
   getSafetyFallback,
-  getFallbackItinerary
+  getFallbackItinerary,
 };

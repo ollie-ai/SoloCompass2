@@ -149,7 +149,7 @@ const getRequiredPlanForFeature = (feature) => {
 /**
  * Get user's plan tier from database
  */
-const getUserPlan = async (userId) => {
+export const getUserPlan = async (userId) => {
   const user = await db.prepare('SELECT subscription_tier, is_premium FROM users WHERE id = ?').get(userId);
   if (!user) return PLAN_TIERS.EXPLORER;
   

@@ -7,8 +7,6 @@ import * as pushService from './pushService.js';
 import * as email from './email.js';
 import { handlePaymentFailure } from './billingService.js';
 
-let stripe;
-
 let stripe = null;
 if (process.env.STRIPE_SECRET_KEY) {
   stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -38,23 +36,153 @@ const PLAN_NAMES = {
   'navigator': 'navigator',
 };
 
-async function sendBillingNotification(userId, notificationType, title, message, data = null) {
+function getStripe() {
+  if (!stripe) throw new Error('Stripe is not configured. Set STRIPE_SECRET_KEY.');
+  return stripe;
+}
+
+function tierFromPriceId(priceId) {
+  if (!priceId) return null;
+  const mapping = {
+    [process.env.STRIPE_PRICE_ID_GUARDIAN]: 'guardian',
+    [process.env.STRIPE_PRICE_ID_GUARDIAN_ANNUAL]: 'guardian',
+    [process.env.STRIPE_PRICE_ID_NAVIGATOR]: 'navigator',
+    [process.env.STRIPE_PRICE_ID_NAVIGATOR_ANNUAL]: 'navigator',
+  };
+  return mapping[priceId] || null;
+}
+
+async function dispatchNotification(userId, type, data) {
   try {
-    await dispatchNotification(userId, notificationType, { title, message, ...(data || {}) });
+    await createNotification(userId, type, data.title || type, data.message || '', data);
+  } catch (err) {
+    logger.warn('[Stripe] Notification dispatch error:', err.message);
+  }
+}
+
+export async function createCheckoutSession({ userId, planId, interval = 'month', successUrl, cancelUrl }) {
+  const client = getStripe();
+  const user = await db.prepare('SELECT id, email, stripe_customer_id FROM users WHERE id = ?').get(userId);
+  if (!user) throw new Error('User not found');
+
+  const priceMap = {
+    guardian: interval === 'year' ? process.env.STRIPE_PRICE_ID_GUARDIAN_ANNUAL : process.env.STRIPE_PRICE_ID_GUARDIAN,
+    navigator: interval === 'year' ? process.env.STRIPE_PRICE_ID_NAVIGATOR_ANNUAL : process.env.STRIPE_PRICE_ID_NAVIGATOR,
+  };
+  const priceId = priceMap[planId];
+  if (!priceId) throw new Error(`No price ID for plan: ${planId}`);
+
+  const params = {
+    mode: 'subscription',
+    line_items: [{ price: priceId, quantity: 1 }],
+    success_url: successUrl || `${process.env.FRONTEND_URL}/settings?tab=billing&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: cancelUrl || `${process.env.FRONTEND_URL}/settings?tab=billing`,
+    metadata: { userId: String(userId), planId },
+  };
+
+  if (user.stripe_customer_id) {
+    params.customer = user.stripe_customer_id;
+  } else {
+    params.customer_email = user.email;
+  }
+
+  const session = await client.checkout.sessions.create(params);
+  return { url: session.url, sessionId: session.id };
+}
+
+export async function createPortalSession({ userId }) {
+  const client = getStripe();
+  const user = await db.prepare('SELECT stripe_customer_id FROM users WHERE id = ?').get(userId);
+  if (!user?.stripe_customer_id) throw new Error('No Stripe customer found for this user');
+
+  const session = await client.billingPortal.sessions.create({
+    customer: user.stripe_customer_id,
+    return_url: `${process.env.FRONTEND_URL}/settings?tab=billing`,
+  });
+  return { url: session.url };
+}
+
+export async function cancelSubscriptionAtPeriodEnd({ userId }) {
+  const client = getStripe();
+  const user = await db.prepare('SELECT stripe_subscription_id FROM users WHERE id = ?').get(userId);
+  if (!user?.stripe_subscription_id) throw new Error('No active subscription found');
+
+  await client.subscriptions.update(user.stripe_subscription_id, { cancel_at_period_end: true });
+  await db.prepare("UPDATE users SET subscription_cancel_at_period_end = true WHERE id = ?").run(userId);
+  return { scheduled: true };
+}
+
+export async function cancelSubscription({ userId }) {
+  return cancelSubscriptionAtPeriodEnd({ userId });
+}
+
+export async function resumeSubscription({ userId }) {
+  const client = getStripe();
+  const user = await db.prepare('SELECT stripe_subscription_id FROM users WHERE id = ?').get(userId);
+  if (!user?.stripe_subscription_id) throw new Error('No active subscription found');
+
+  await client.subscriptions.update(user.stripe_subscription_id, { cancel_at_period_end: false });
+  await db.prepare("UPDATE users SET subscription_cancel_at_period_end = false WHERE id = ?").run(userId);
+  return { resumed: true };
+}
+
+export async function getSubscriptionStatus({ userId }) {
+  const user = await db.prepare('SELECT subscription_tier, is_premium, premium_expires_at, subscription_status, subscription_cancel_at_period_end, subscription_period_end FROM users WHERE id = ?').get(userId);
+  if (!user) throw new Error('User not found');
+  return {
+    tier: user.subscription_tier || 'explorer',
+    isPremium: !!user.is_premium,
+    status: user.subscription_status || 'inactive',
+    cancelAtPeriodEnd: !!user.subscription_cancel_at_period_end,
+    periodEnd: user.subscription_period_end,
+    premiumExpiresAt: user.premium_expires_at,
+  };
+}
+
+export async function listInvoices({ userId, limit = 10 }) {
+  const client = getStripe();
+  const user = await db.prepare('SELECT stripe_customer_id FROM users WHERE id = ?').get(userId);
+  if (!user?.stripe_customer_id) return [];
+
+  const invoices = await client.invoices.list({ customer: user.stripe_customer_id, limit });
+  return invoices.data.map(inv => ({
+    id: inv.id,
+    amount: inv.amount_paid / 100,
+    currency: inv.currency,
+    status: inv.status,
+    date: new Date(inv.created * 1000).toISOString(),
+    pdf: inv.invoice_pdf,
+    hostedUrl: inv.hosted_invoice_url,
+  }));
+}
+
+export async function validateAndApplyPromo({ userId, code }) {
+  const client = getStripe();
+  const promos = await client.promotionCodes.list({ code, active: true, limit: 1 });
+  if (!promos.data.length) throw new Error('Invalid or expired promo code');
+  return { valid: true, promoId: promos.data[0].id, discount: promos.data[0].coupon };
+}
+
+export async function handleStripeWebhook(rawBody, sig) {
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret) throw new Error('STRIPE_WEBHOOK_SECRET not configured');
+
+  const client = getStripe();
+  let event;
+  try {
+    event = client.webhooks.constructEvent(rawBody, sig, webhookSecret);
   } catch (err) {
     logger.error('[Stripe] Webhook signature verification failed:', err.message);
     throw new Error(`Webhook signature verification failed: ${err.message}`);
   }
 
-  // Idempotency: skip already-processed events
-  const existing = await db.prepare('SELECT id FROM stripe_processed_events WHERE stripe_event_id = ?').get(event.id);
+  const existing = await db.get('SELECT id FROM stripe_processed_events WHERE stripe_event_id = ?', event.id);
   if (existing) {
     logger.info(`[Stripe] Event ${event.id} already processed, skipping`);
     return { processed: false, alreadyHandled: true, eventId: event.id };
   }
 
   logger.info(`[Stripe] Processing event: ${event.type} (${event.id})`);
-
   let handlerError = null;
 
   try {
@@ -68,9 +196,7 @@ async function sendBillingNotification(userId, notificationType, title, message,
       case 'customer.subscription.deleted':
         await handleSubscriptionDeleted(event.data.object);
         break;
-        
       case 'invoice.payment_succeeded':
-        // Reset AI daily usage counters on successful billing period renewal
         try {
           const paidInvoice = event.data.object;
           if (paidInvoice.billing_reason === 'subscription_cycle') {
@@ -78,23 +204,18 @@ async function sendBillingNotification(userId, notificationType, title, message,
             if (renewedUser) {
               const { resetUserAICounters } = await import('./usageReset.js');
               await resetUserAICounters(renewedUser.id);
-              logger.info(`[STRIPE] Reset AI usage counters for user ${renewedUser.id} on subscription renewal`);
             }
           }
         } catch (resetErr) {
           logger.warn(`[STRIPE] Usage reset on renewal failed: ${resetErr.message}`);
         }
         break;
-        
-      case 'invoice.payment_failed':
+      case 'invoice.payment_failed': {
         const failedInvoice = event.data.object;
-        logger.warn(`[STRIPE] Payment failed for invoice: ${failedInvoice.id}`);
-        
         const failedUser = await db.get('SELECT id FROM users WHERE stripe_customer_id = ?', failedInvoice.customer);
-        if (failedUser) {
-          await handlePaymentFailure(failedUser.id, failedInvoice.id);
-        }
+        if (failedUser) await handlePaymentFailure(failedUser.id, failedInvoice.id);
         break;
+      }
       default:
         logger.info(`[Stripe] Unhandled event type: ${event.type}`);
     }
@@ -103,15 +224,14 @@ async function sendBillingNotification(userId, notificationType, title, message,
     handlerError = err.message;
   }
 
-  // Mark as processed even if handler errored (to avoid infinite retries on bad data)
   try {
-    await db.prepare('INSERT INTO stripe_processed_events (stripe_event_id, event_type) VALUES (?, ?)').run(event.id, event.type);
+    await db.run('INSERT INTO stripe_processed_events (stripe_event_id, event_type) VALUES (?, ?)', event.id, event.type);
   } catch (insertErr) {
     logger.warn('[Stripe] Could not mark event as processed:', insertErr.message);
   }
 
   return { processed: true, eventId: event.id, type: event.type, error: handlerError };
-};
+}
 
 async function getUserByCustomerId(customerId) {
   return db.prepare('SELECT id, email, name, subscription_tier FROM users WHERE stripe_customer_id = ?').get(customerId);

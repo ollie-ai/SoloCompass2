@@ -3,43 +3,64 @@ import rateLimit from 'express-rate-limit';
 import { 
     stripe,
     createCheckoutSession, 
+    createPortalSession,
     handleStripeWebhook, 
     cancelSubscription, 
+    cancelSubscriptionAtPeriodEnd,
+    resumeSubscription,
     getSubscriptionStatus,
+    listInvoices,
+    validateAndApplyPromo,
     PLAN_PRICE_IDS 
 } from '../services/stripe.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, authenticate } from '../middleware/auth.js';
 import { createNotification, getNotificationPreferences } from '../services/notificationService.js';
 import { getChannelsForType, CHANNEL } from '../services/notificationRegistry.js';
 import * as pushService from '../services/pushService.js';
-import rateLimit from 'express-rate-limit';
 import db from '../db.js';
 import logger from '../services/logger.js';
 import { startFreeTrial, changePlan, getUsage, checkTrialExpiry } from '../services/billingService.js';
 
-const billingLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 30,
-  message: {
-    success: false,
-    error: { code: 'TOO_MANY_REQUESTS', message: 'Too many billing requests, please try again after 15 minutes' },
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-import {
-  createCheckoutSession,
-  createPortalSession,
-  handleStripeWebhook,
-  cancelSubscriptionAtPeriodEnd,
-  resumeSubscription,
-  changePlan,
-  listInvoices,
-  validateAndApplyPromo,
-  getSubscriptionStatus,
-} from '../services/stripe.js';
-
 const router = express.Router();
+
+const PLANS = [
+  {
+    id: 'explorer',
+    name: 'Explorer',
+    tier: 'explorer',
+    monthlyPrice: 0,
+    annualPrice: 0,
+    currency: 'gbp',
+    priceId: null,
+    annualPriceId: null,
+    features: ['Basic trip planning', 'Safety alerts', 'Emergency contacts'],
+    limits: { trips: 3, aiMessages: 10, emergencyContacts: 2 }
+  },
+  {
+    id: 'guardian',
+    name: 'Guardian',
+    tier: 'guardian',
+    monthlyPrice: 9.99,
+    annualPrice: 99.99,
+    currency: 'gbp',
+    priceId: process.env.STRIPE_PRICE_ID_GUARDIAN,
+    annualPriceId: process.env.STRIPE_PRICE_ID_GUARDIAN_ANNUAL,
+    features: ['Unlimited trips', 'AI Atlas assistant', 'Advanced safety tools', 'Check-in monitoring'],
+    limits: { trips: -1, aiMessages: 100, emergencyContacts: 10 }
+  },
+  {
+    id: 'navigator',
+    name: 'Navigator',
+    tier: 'navigator',
+    monthlyPrice: 19.99,
+    annualPrice: 199.99,
+    currency: 'gbp',
+    priceId: process.env.STRIPE_PRICE_ID_NAVIGATOR,
+    annualPriceId: process.env.STRIPE_PRICE_ID_NAVIGATOR_ANNUAL,
+    features: ['Everything in Guardian', 'Priority support', 'Concierge planning', 'Unlimited AI messages'],
+    limits: { trips: -1, aiMessages: -1, emergencyContacts: -1 }
+  }
+];
 
 const billingWriteLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -202,36 +223,6 @@ router.post('/resume', authenticate, async (req, res) => {
   }
 });
 
-// ─── POST /change-plan ───────────────────────────────────────────────────────
-
-router.post('/change-plan', authenticate, async (req, res) => {
-  try {
-    const { planId, interval = 'month', proration } = req.body;
-    if (!planId) return res.status(400).json({ success: false, error: 'planId required' });
-
-    const plan = PLANS.find(p => p.id === planId || p.tier === planId.toLowerCase());
-    if (!plan) return res.status(400).json({ success: false, error: `Unknown plan: ${planId}` });
-
-    await dispatchNotification(userId, 'subscription_cancelled', {
-      title: 'Subscription Cancelled',
-      message: `Your ${currentTier} subscription has been cancelled. You can upgrade anytime.`,
-      tier: currentTier,
-    });
-
-    res.json({ success: true, data: { message: 'Subscription cancelled successfully' } });
-  } catch (error) {
-    logger.error(`[Billing] Cancel subscription failed: ${error.message}`);
-    res.status(500).json({
-      success: false,
-      error: { code: 'CANCEL_ERROR', message: 'Failed to cancel subscription' }
-    });
-
-    res.json({ success: true, newTier: result.newTier, message: `Plan changed to ${result.newTier}` });
-  } catch (error) {
-    logger.error('[Billing] Change plan error:', error.message);
-    res.status(500).json({ success: false, error: { message: error.message } });
-  }
-});
 
 /**
  * POST /api/billing/change-plan
@@ -381,6 +372,14 @@ router.get('/subscription-status', requireAuth, async (req, res) => {
       });
     }
 
+    const status = await getSubscriptionStatus({ userId });
+    res.json({ success: true, data: status });
+  } catch (error) {
+    logger.error('[Billing] Subscription status error:', error.message);
+    res.status(500).json({ success: false, error: { message: error.message } });
+  }
+});
+
 router.get('/invoices', authenticate, async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 10, 50);
@@ -460,7 +459,7 @@ router.get('/usage', authenticate, async (req, res) => {
  * GET /api/billing/invoices
  * Retrieve billing history (invoices) from Stripe
  */
-router.get('/invoices', invoicesLimiter, requireAuth, async (req, res) => {
+router.get('/invoices', billingWriteLimiter, requireAuth, async (req, res) => {
   try {
     const userId = req.userId;
     const user = await db.prepare('SELECT stripe_customer_id, subscription_tier, is_premium FROM users WHERE id = ?').get(userId);

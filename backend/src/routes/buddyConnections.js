@@ -1,5 +1,5 @@
 import express from 'express';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { body, validationResult } from 'express-validator';
 import { requireAuth } from '../middleware/auth.js';
 import db from '../db.js';
@@ -11,7 +11,7 @@ const router = express.Router();
 const buddyConnectionsLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 60,
-  keyGenerator: (req) => String(req.userId || req.ip),
+  keyGenerator: (req) => req.userId ? String(req.userId) : ipKeyGenerator(req),
   message: {
     success: false,
     error: { code: 'TOO_MANY_REQUESTS', message: 'Too many buddy safety actions. Please try again shortly.' }
@@ -27,7 +27,7 @@ router.use(requireAuth);
 const reportLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 5,
-  keyGenerator: (req) => String(req.userId || req.ip),
+  keyGenerator: (req) => req.userId ? String(req.userId) : ipKeyGenerator(req),
   message: {
     success: false,
     error: { code: 'TOO_MANY_REQUESTS', message: 'Too many reports submitted. Please try again later.' }

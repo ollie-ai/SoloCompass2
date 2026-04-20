@@ -491,7 +491,6 @@ router.post('/login', [
     const refreshHash = hashToken(refreshToken);
 
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-    const ipAddress = req.ip || req.connection?.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
     const userAgent = req.headers['user-agent'] || 'unknown';
     const deviceInfo = parseUserAgent(userAgent);
     

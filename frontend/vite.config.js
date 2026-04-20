@@ -13,7 +13,9 @@ export default defineConfig({
     ],
   },
   server: {
-    port: 5176,
+    port: 5000,
+    host: '0.0.0.0',
+    allowedHosts: true,
     proxy: {
       '/api': {
         target: 'http://localhost:3005',
@@ -27,8 +29,7 @@ export default defineConfig({
       },
     },
     headers: {
-      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com https://js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https://actions.google.com https://cdn.pixabay.com; connect-src 'self' http://localhost:* https://api.solocompass.app https://api.stripe.com; frame-src https://js.stripe.com https://hooks.stripe.com",
-      'X-Frame-Options': 'DENY',
+      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com https://js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https://actions.google.com https://cdn.pixabay.com; connect-src 'self' http://localhost:* ws://localhost:* wss://* https://api.solocompass.app https://api.stripe.com; frame-src https://js.stripe.com https://hooks.stripe.com",
       'X-Content-Type-Options': 'nosniff',
     },
   },

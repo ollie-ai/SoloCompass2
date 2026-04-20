@@ -24,7 +24,7 @@ export const DISPLAY_NAME_TO_ROLE = Object.fromEntries(
  */
 export const getRoleDisplayName = (role) => ROLE_DISPLAY_NAMES[role] ?? role;
 
-export const VALID_USER_ROLES = ['user', 'viewer', 'admin'];
+export const VALID_USER_ROLES = ['user', 'viewer', 'admin', 'support_agent'];
 
 // Lazy secret accessor - exported for use in other modules
 export const getJWTSecret = () => {
@@ -174,7 +174,6 @@ export const authenticate = async (req, res, next) => {
 };
 
 export const requireAuth = authenticate;
-export const VALID_USER_ROLES = ['user', 'viewer', 'admin', 'support_agent'];
 
 // Admin role levels: 'support', 'moderator', 'super_admin'
 // All admin roles have basic admin access

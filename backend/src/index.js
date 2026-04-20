@@ -120,6 +120,8 @@ async function bootstrap() {
     const { default: callsRoutes } = await import('./routes/calls.js');
     const { default: esimRoutes } = await import('./routes/esim.js');
     const { default: supportRoutes } = await import('./routes/support.js');
+    const { default: settingsRoutes } = await import('./routes/settings.js');
+    const { default: referralsRoutes } = await import('./routes/referrals.js');
 
     const app = express();
     const server = createServer(app);

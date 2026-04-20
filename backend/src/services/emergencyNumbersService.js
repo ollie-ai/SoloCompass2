@@ -19,7 +19,7 @@ function readEmergencyNumbers() {
 
 const EMERGENCY_TYPES = ['police', 'ambulance', 'fire', 'general'];
 
-let emergencyNumbersData = emergencyNumbers;
+let emergencyNumbersData = readEmergencyNumbers();
 let refreshTimer = null;
 let refreshMetadata = {
   source: 'static-json',

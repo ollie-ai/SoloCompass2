@@ -6,6 +6,13 @@ import logger from '../services/logger.js';
 
 const router = express.Router();
 
+const preferencesLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
 /**
  * Verify a timezone string is a valid IANA timezone.
  * Uses the Intl API which is available in all modern Node.js versions.

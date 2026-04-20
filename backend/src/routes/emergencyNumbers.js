@@ -3,6 +3,7 @@ import rateLimit from 'express-rate-limit';
 import { getEmergencyNumbers, getAllEmergencyNumbers, isAvailable } from '../services/emergencyNumbersService.js';
 import { getEmergencyDataRefreshStatus, maybeRefreshEmergencyData } from '../services/emergencyDataRefreshService.js';
 import { requireAdmin } from '../middleware/auth.js';
+import logger from '../services/logger.js';
 
 const router = express.Router();
 const refreshLimiter = rateLimit({
@@ -10,26 +11,6 @@ const refreshLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false
-});
-
-router.get('/refresh-status', (req, res) => {
-  res.json({
-    success: true,
-    data: getEmergencyNumbersRefreshMetadata(),
-  });
-});
-
-router.post('/refresh', async (req, res) => {
-  try {
-    const result = await refreshEmergencyNumbersDataset({ force: true });
-    res.status(result.refreshed ? 200 : 202).json({
-      success: result.refreshed,
-      data: result,
-    });
-  } catch (error) {
-    logger.error(`[EmergencyNumbers] Refresh Error: ${error.message}`);
-    res.status(500).json({ success: false, error: 'Refresh failed' });
-  }
 });
 
 router.get('/', async (req, res) => {

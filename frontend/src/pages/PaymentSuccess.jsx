@@ -17,12 +17,12 @@ export default function PaymentSuccess() {
 
   useEffect(() => {
     if (countdown <= 0) {
-      navigate('/dashboard', { replace: true });
+      navigate(`/dashboard?payment=success&plan=${planId}`, { replace: true });
       return;
     }
     const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
     return () => clearTimeout(timer);
-  }, [countdown, navigate]);
+  }, [countdown, navigate, planId]);
 
   return (
     <div className="min-h-screen bg-mesh flex items-center justify-center px-4">
@@ -76,7 +76,7 @@ export default function PaymentSuccess() {
 
         {/* CTA Button */}
         <button
-          onClick={() => navigate('/dashboard', { replace: true })}
+          onClick={() => navigate(`/dashboard?payment=success&plan=${planId}`, { replace: true })}
           className="w-full py-4 rounded-2xl font-black text-sm bg-brand-deep text-white hover:bg-black transition-all active:scale-95 shadow-lg shadow-brand-deep/20 flex items-center justify-center gap-2"
         >
           Go to Dashboard

@@ -28,8 +28,20 @@ const BookingsCard = memo(function BookingsCard({
   bookings = [], 
   tripId,
   className = '',
-  showHeading = true
+  showHeading = true,
+  loading = false,
 }) {
+  if (loading) {
+    return (
+      <div className={showHeading ? 'dashboard-widget' : ''}>
+        {showHeading && <div className="h-6 w-24 rounded-lg bg-base-200 animate-pulse mb-4" />}
+        <div className="space-y-2">
+          {[1, 2].map(n => <div key={n} className="h-12 rounded-lg bg-base-200 animate-pulse" />)}
+        </div>
+      </div>
+    );
+  }
+
   const hasBookings = bookings && bookings.length > 0
   
   const getStatusBadge = () => {

@@ -52,6 +52,7 @@ const Dashboard = () => {
   const [savedDashboardState, setSavedDashboardState] = useDashboardState();
   const [activityFeed, setActivityFeed] = useState([]);
   const [activityLoading, setActivityLoading] = useState(true);
+  const [tripDataLoading, setTripDataLoading] = useState(false);
   
   // Ref to store interval ID for cleanup
   const paymentIntervalRef = useRef(null);
@@ -159,6 +160,7 @@ const Dashboard = () => {
     if (!tripId) return;
 
     const fetchTripData = async () => {
+      setTripDataLoading(true);
       try {
         const [accommodationRes, bookingsRes, documentsRes, placesRes, budgetRes, timeWeatherRes] = await Promise.all([
           getTripAccommodation(tripId).catch(err => { console.error('[Dashboard] Failed to fetch accommodation:', err); toast.error('Failed to load accommodation details'); return null; }),
@@ -179,6 +181,8 @@ const Dashboard = () => {
         setTimeWeather(twData);
       } catch (err) {
         console.error('Error fetching trip data:', err);
+      } finally {
+        setTripDataLoading(false);
       }
     };
 
@@ -247,13 +251,13 @@ const Dashboard = () => {
       case 'no_trips':
         return <NoTripsDashboard />;
       case 'planning':
-        return <PlanningDashboard trip={trip} alerts={alerts} stats={stats} />;
+        return <PlanningDashboard trip={trip} alerts={alerts} stats={stats} loading={tripDataLoading} />;
       case 'upcoming':
-        return <UpcomingDashboard trip={trip} alerts={alerts} stats={stats} safetyData={safetyData} timeWeather={timeWeather} />;
+        return <UpcomingDashboard trip={trip} alerts={alerts} stats={stats} safetyData={safetyData} timeWeather={timeWeather} loading={tripDataLoading} />;
       case 'live_trip':
-        return <LiveTripDashboard trip={trip} alerts={alerts} stats={stats} safetyData={safetyData} timeWeather={timeWeather} />;
+        return <LiveTripDashboard trip={trip} alerts={alerts} stats={stats} safetyData={safetyData} timeWeather={timeWeather} loading={tripDataLoading} />;
       case 'completed':
-        return <CompletedDashboard trip={trip} alerts={alerts} stats={stats} />;
+        return <CompletedDashboard trip={trip} alerts={alerts} stats={stats} loading={tripDataLoading} />;
       default:
         return <NoTripsDashboard />;
     }

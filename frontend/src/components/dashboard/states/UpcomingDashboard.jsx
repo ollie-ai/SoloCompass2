@@ -73,7 +73,7 @@ const LockedTierCard = () => {
   )
 }
 
-const UpcomingDashboard = ({ trip, alerts = [], stats = {}, safetyData = {}, timeWeather = null }) => {
+const UpcomingDashboard = ({ trip, alerts = [], stats = {}, safetyData = {}, timeWeather = null, loading = false }) => {
   // 1. Hooks MUST come first
   const { user } = useAuthStore()
   const [checklistState, setChecklistState] = useState({
@@ -345,11 +345,12 @@ const UpcomingDashboard = ({ trip, alerts = [], stats = {}, safetyData = {}, tim
           </div>
         </CollapsibleWidget>
 
-        {hasBudget && (
+        {(hasBudget || loading) && (
           <BudgetSnapshotWidget 
             key="budgetSnapshot" 
             tripId={trip?.id} 
-            budget={trip?.budget} 
+            budget={trip?.budget}
+            loading={loading}
           />
         )}
         

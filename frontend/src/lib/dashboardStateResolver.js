@@ -1,3 +1,5 @@
+import { READINESS_LABELS } from '../stores/readinessStore';
+
 export function resolveDashboardState(trips) {
   if (!trips?.length) return { state: "no_trips", trip: null }
   
@@ -62,18 +64,16 @@ export function computeStats(trips, alerts) {
 }
 
 export const READINESS_THRESHOLDS = {
-  ready: 100,
-  needsAttention: 75,
-  moderate: 50,
-  critical: 25,
+  ready: 85,
+  inProgress: 60,
+  needsAttention: 30,
 }
 
 export function getReadinessStatus(percentage) {
-  if (percentage >= READINESS_THRESHOLDS.ready) return 'Ready'
-  if (percentage >= READINESS_THRESHOLDS.needsAttention) return 'In progress'
-  if (percentage >= READINESS_THRESHOLDS.moderate) return 'Needs attention'
-  if (percentage >= READINESS_THRESHOLDS.critical) return 'Needs attention'
-  return 'Critical blocker'
+  if (percentage >= READINESS_THRESHOLDS.ready) return READINESS_LABELS.READY
+  if (percentage >= READINESS_THRESHOLDS.inProgress) return READINESS_LABELS.IN_PROGRESS
+  if (percentage >= READINESS_THRESHOLDS.needsAttention) return READINESS_LABELS.NEEDS_ATTENTION
+  return READINESS_LABELS.CRITICAL_BLOCKER
 }
 
 export function computeReadiness(checklistState, tripData = {}) {

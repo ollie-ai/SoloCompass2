@@ -27,7 +27,7 @@ const WIDGET_CONFIG = {
   documents: { title: 'Documents', icon: CheckCircle, accentColor: 'blue' },
 }
 
-const PlanningDashboard = ({ trip = null, alerts = [], stats = {} }) => {
+const PlanningDashboard = ({ trip = null, alerts = [], stats = {}, loading = false }) => {
   // 1. Hooks first - get widget state and helper functions
   const [checklistState, setChecklistState] = useState({
     itinerary: false,
@@ -172,7 +172,7 @@ const PlanningDashboard = ({ trip = null, alerts = [], stats = {} }) => {
           onToggleExpand={() => toggleExpand('accommodation')} onHide={() => toggleHide('accommodation')} accentColor="blue"
           draggable={true}
         >
-          <AccommodationCard tripId={trip?.id} accommodation={trip?.accommodation} showHeading={false} />
+          <AccommodationCard tripId={trip?.id} accommodation={trip?.accommodation} showHeading={false} loading={loading} />
         </CollapsibleWidget>
       </DashboardModuleGrid>
     </div>

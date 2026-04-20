@@ -2,7 +2,16 @@ import { motion } from 'framer-motion'
 import { CircleDollarSign, TrendingUp, Wallet } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
-const BudgetSnapshotWidget = ({ tripId = null, budget = null, className = "", showHeading = true }) => {
+const BudgetSnapshotWidget = ({ tripId = null, budget = null, className = "", showHeading = true, loading = false }) => {
+  if (loading) {
+    return (
+      <div className={`${className} space-y-2`}>
+        {showHeading && <div className="h-6 w-28 rounded-lg bg-base-200 animate-pulse mb-4" />}
+        <div className="h-20 rounded-xl bg-base-200 animate-pulse" />
+        <div className="h-3 rounded-full bg-base-200 animate-pulse" />
+      </div>
+    );
+  }
   const spent = budget?.totalSpent || 0
   const totalBudget = budget?.totalBudget || budget?.convertedTotalBudget || 0
   const currency = budget?.originalCurrency || budget?.displayCurrency || 'USD'

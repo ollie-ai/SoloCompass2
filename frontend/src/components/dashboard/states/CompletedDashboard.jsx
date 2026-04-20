@@ -7,7 +7,7 @@ import DashboardSkeleton from '../DashboardSkeleton'
 import Button from '../../Button'
 import { useWidgetState } from '../../../hooks/useWidgetState'
 
-const CompletedDashboard = ({ trip = null, alerts = [], stats = {} }) => {
+const CompletedDashboard = ({ trip = null, alerts = [], stats = {}, loading = false }) => {
   const [widgetState, setWidgetState] = useWidgetState('completed', {
     statsCard: { expanded: true, hidden: false },
     memories: { expanded: true, hidden: false },

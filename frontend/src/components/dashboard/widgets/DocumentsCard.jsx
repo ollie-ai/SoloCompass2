@@ -24,8 +24,20 @@ const DocumentsCard = memo(function DocumentsCard({
   documents = [],
   tripId,
   className = '',
-  showHeading = true
+  showHeading = true,
+  loading = false,
 }) {
+  if (loading) {
+    return (
+      <div className={showHeading ? 'dashboard-widget' : ''}>
+        {showHeading && <div className="h-6 w-28 rounded-lg bg-base-200 animate-pulse mb-4" />}
+        <div className="space-y-2">
+          {[1, 2, 3].map(n => <div key={n} className="h-10 rounded-lg bg-base-200 animate-pulse" />)}
+        </div>
+      </div>
+    );
+  }
+
   const hasDocuments = documents && documents.length > 0
   
   const checkExpiry = (expiryDate) => {

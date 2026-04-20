@@ -8,8 +8,20 @@ const AccommodationCard = memo(function AccommodationCard({
   accommodation, 
   tripId,
   className = '',
-  showHeading = true
+  showHeading = true,
+  loading = false,
 }) {
+  if (loading) {
+    return (
+      <div className={showHeading ? 'dashboard-widget' : ''}>
+        {showHeading && <div className="h-6 w-32 rounded-lg bg-base-200 animate-pulse mb-4" />}
+        <div className="space-y-2">
+          {[1, 2].map(n => <div key={n} className="h-10 rounded-lg bg-base-200 animate-pulse" />)}
+        </div>
+      </div>
+    );
+  }
+
   const hasAccommodation = accommodation && (accommodation.name || accommodation.address)
   
   const getStatusBadge = () => {

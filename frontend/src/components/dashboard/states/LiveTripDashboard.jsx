@@ -33,7 +33,7 @@ const WIDGET_CONFIG = {
   esim: { title: 'eSIM Data', icon: Wifi, accentColor: 'indigo' },
 }
 
-const LiveTripDashboard = ({ trip = null, alerts = [], stats = {}, safetyData = {}, timeWeather = null }) => {
+const LiveTripDashboard = ({ trip = null, alerts = [], stats = {}, safetyData = {}, timeWeather = null, loading = false }) => {
   // 1. Hooks first - get widget state and helper functions
   const [widgetState, setWidgetState, { 
     reorderWidgets, 
@@ -211,7 +211,7 @@ const LiveTripDashboard = ({ trip = null, alerts = [], stats = {}, safetyData = 
           onToggleExpand={() => toggleExpand('accommodation')} onHide={() => toggleHide('accommodation')} accentColor="blue"
           draggable={true}
         >
-          <AccommodationCard tripId={trip?.id} accommodation={trip?.accommodation} showHeading={false} />
+          <AccommodationCard tripId={trip?.id} accommodation={trip?.accommodation} showHeading={false} loading={loading} />
         </CollapsibleWidget>
 
         {trip?.bookings?.length > 0 && (
@@ -221,7 +221,7 @@ const LiveTripDashboard = ({ trip = null, alerts = [], stats = {}, safetyData = 
             onToggleExpand={() => toggleExpand('bookings')} onHide={() => toggleHide('bookings')}
             draggable={true}
           >
-            <BookingsCard tripId={trip?.id} bookings={trip?.bookings} showHeading={false} />
+            <BookingsCard tripId={trip?.id} bookings={trip?.bookings} showHeading={false} loading={loading} />
           </CollapsibleWidget>
         )}
 
@@ -232,7 +232,7 @@ const LiveTripDashboard = ({ trip = null, alerts = [], stats = {}, safetyData = 
             onToggleExpand={() => toggleExpand('budget')} onHide={() => toggleHide('budget')} accentColor="emerald"
             draggable={true}
           >
-            <BudgetSnapshotWidget tripId={trip?.id} budget={trip?.budget} />
+            <BudgetSnapshotWidget tripId={trip?.id} budget={trip?.budget} loading={loading} />
           </CollapsibleWidget>
         )}
       </DashboardModuleGrid>

@@ -137,6 +137,10 @@ export default function SafetyCheckIn({ tripId, onClose }) {
       }
     } catch (err) {
       console.error('Error fetching data:', err);
+      const isNetwork = !err.response;
+      setError(isNetwork
+        ? 'Could not reach the server. Check your connection and try again.'
+        : 'Failed to load safety data. Please refresh the page.');
     } finally {
       setLoading(false);
     }

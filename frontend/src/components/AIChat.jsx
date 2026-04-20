@@ -90,20 +90,26 @@ const AIChat = () => {
   }, [messages]);
 
   const handleSend = async (text = input) => {
-    if (!text.trim()) return;
+    const trimmed = (typeof text === 'string' ? text : input).trim();
+    if (!trimmed || loading) return;
 
-    const userMessage = { role: 'user', content: text };
+    const userMessage = { role: 'user', content: trimmed };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setLoading(true);
 
     try {
-      const response = await api.post('/ai/chat', { message: text });
-      const assistantMessage = { role: 'assistant', content: response.data.data?.response || response.data.data?.reply || 'Sorry, I could not process that request.' };
-      setMessages(prev => [...prev, assistantMessage]);
+      const response = await api.post('/ai/chat', { message: trimmed });
+      const reply = response.data.data?.response || response.data.data?.reply;
+      if (!reply) throw new Error('Empty response');
+      setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
     } catch (error) {
+      const isNetworkError = !error.response;
+      const errMsg = isNetworkError
+        ? "I couldn't reach the server. Check your connection and try again."
+        : 'Sorry, I encountered an error. Please try again.';
       toast.error('Failed to connect to Atlas');
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I encountered an error. Please try again.' }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: errMsg, isError: true }]);
     } finally {
       setLoading(false);
     }
@@ -178,16 +184,20 @@ const AIChat = () => {
           <input 
             type="text"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleSend(); }}
+            onChange={(e) => setInput(e.target.value.slice(0, 500))}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) handleSend(); }}
             placeholder="Ask Atlas anything..."
-            className="w-full pl-4 pr-14 py-3 bg-base-200 rounded-xl border-none outline-none focus:ring-2 focus:ring-brand-vibrant/30 focus:bg-base-100 transition-all font-medium text-sm"
+            maxLength={500}
+            aria-label="Message Atlas"
+            disabled={loading}
+            className="w-full pl-4 pr-14 py-3 bg-base-200 rounded-xl border-none outline-none focus:ring-2 focus:ring-brand-vibrant/30 focus:bg-base-100 transition-all font-medium text-sm disabled:opacity-60"
           />
           <motion.button 
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={() => handleSend()}
             disabled={!input.trim() || loading}
+            aria-label="Send message"
             className="absolute right-2 w-9 h-9 bg-brand-vibrant text-white rounded-lg flex items-center justify-center shadow-lg shadow-brand-vibrant/20 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
              <Send size={16} />

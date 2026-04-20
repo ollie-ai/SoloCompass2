@@ -119,7 +119,7 @@ const BookingsCard = memo(function BookingsCard({
       <div className="dashboard-widget-header">
         <div className="dashboard-widget-title">
           <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
-            <Ticket size={16} weight="duotone" className="text-violet-500" />
+            <Ticket size={16} className="text-violet-500" />
           </div>
           <h3 className="text-base font-bold text-base-content">Bookings</h3>
         </div>

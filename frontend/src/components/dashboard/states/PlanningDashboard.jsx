@@ -141,8 +141,10 @@ const PlanningDashboard = ({ trip = null, alerts = [], stats = {}, loading = fal
           draggable={true}
         >
           <ChecklistCard
+            title="Planning Checklist"
             items={checklistItems}
             onToggle={(i) => { const key = checklistItems[i]?.key; if(key) toggleItem(key); }}
+            loading={loading}
           />
         </CollapsibleWidget>
 

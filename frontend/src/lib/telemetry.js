@@ -7,6 +7,7 @@
  */
 
 import api from './api';
+import { hasConsentFor } from '../components/CookieConsent';
 
 const isProd = import.meta.env.PROD;
 
@@ -82,7 +83,7 @@ export const trackEvent = async (eventName, properties = {}) => {
     console.log(`[Analytics Event]: ${eventName}`, properties);
   }
 
-  if (!hasConsent() && isProd) return;
+  if (!hasConsentFor('analytics') && isProd) return;
 
   if (window.gtag) {
     window.gtag('event', eventName, properties);

@@ -128,10 +128,10 @@ const NoTripsDashboard = () => {
             <h3 className="text-xl font-outfit font-black text-base-content tracking-tight">Profile Sync</h3>
           </div>
           <div className="space-y-2">
-            {setupSteps.map((item) => (
+            {setupSteps.map((item, index) => (
               <button
                 key={item.label}
-                onClick={() => toggleStep(i)}
+                onClick={() => toggleStep(index)}
                 className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-base-200/50 transition-all group text-left border border-transparent hover:border-base-content/5"
               >
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0 ${item.done ? 'bg-success/20' : 'bg-base-200 group-hover:bg-brand-vibrant/10'}`}>
@@ -168,7 +168,7 @@ const NoTripsDashboard = () => {
           <div className="flex-1 h-px bg-gradient-to-r from-base-content/10 to-transparent" />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {starterDestinations.map((dest) => (
+          {starterDestinations.map((dest, i) => (
             <motion.div
               key={dest.name}
               initial={{ opacity: 0, y: 12 }}

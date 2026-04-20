@@ -17,6 +17,8 @@ import CompletedDashboard from '../components/dashboard/states/CompletedDashboar
 import SubscriptionBanner from '../components/dashboard/SubscriptionBanner';
 import APIErrorBoundary from '../components/APIErrorBoundary';
 import SafetyStatusIndicator from '../components/SafetyStatusIndicator';
+import SEO from '../components/SEO';
+import ActivityFeedWidget from '../components/dashboard/widgets/ActivityFeedWidget';
 
 // Stable selector for user - prevents unnecessary re-renders
 const selectUser = (state) => state.user;

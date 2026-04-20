@@ -1,6 +1,6 @@
 import { User, Smile } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { formatMessage } from './formatMessage';
+import { formatMessage } from './formatMessage.jsx';
 
 /**
  * AtlasMessage — renders a single user or assistant chat message bubble.

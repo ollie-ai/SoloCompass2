@@ -78,6 +78,12 @@ const TripPackingPage = lazy(() => import('./pages/TripPackingPage'));
 const TripSharePage = lazy(() => import('./pages/TripSharePage'));
 const BottomNav = lazy(() => import('./components/BottomNav'));
 const WhatsNew = lazy(() => import('./components/WhatsNew'));
+const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
+const MagicLink = lazy(() => import('./pages/MagicLink'));
+const PublicProfile = lazy(() => import('./pages/PublicProfile'));
+const Guides = lazy(() => import('./pages/Guides'));
+const Tips = lazy(() => import('./pages/Tips'));
+const Changelog = lazy(() => import('./pages/Changelog'));
 
 function LoadingFallback() {
   return (

@@ -32,6 +32,14 @@ npm run dev:backend  # backend only
 - `AUTOINCREMENT` syntax error — SQLite DDL mixed with PostgreSQL in support tables
 - Service Worker registration failed — expected in iframe/proxy context
 
+## Frontend Fixes Applied (Session 2)
+- `frontend/src/components/Navbar.jsx`: Added missing Lucide icon imports: `Book` (Blog nav), `Globe` (language selector)
+- `frontend/src/App.jsx`: Added 6 missing lazy page imports: `VerifyEmail`, `MagicLink`, `PublicProfile`, `Guides`, `Tips`, `Changelog`
+- `frontend/src/main.jsx`: Added `import './i18n/index.js'` to initialize react-i18next before `CookieConsent` uses `useTranslation`
+- `frontend/src/components/formatMessage.jsx`: Renamed from `.js`, repaired JSDoc (previous session)
+- `frontend/src/components/CookieConsent.jsx`: Added `hasConsentFor` named export (previous session)
+- `frontend/src/components/Layout.jsx`: Fixed FOUC visibility timing (previous session)
+
 ## Code Fixes Applied During Setup
 - `backend/src/services/aiService.js`: Added named exports `callAnthropic`, `callAI`, `getAIUsageStats`
 - `backend/src/services/featureFlagService.js`: Added named export `getAllFlags`

@@ -13,7 +13,7 @@ import {
   Menu, X, Compass, LayoutDashboard, Shield, ShieldAlert, 
   Calendar, Users, ChevronRight as CaretRight, MapPin, Plus,
   Sparkles, HelpCircle, ChevronDown, Home, ChevronRight, MessageCircle,
-  Search,
+  Search, Book, Globe,
 } from 'lucide-react';
 
 const PUBLIC_LINKS = [

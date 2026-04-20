@@ -4,6 +4,8 @@ const DOMPURIFY_CONFIG = {
   ALLOWED_TAGS: ['strong', 'em', 'b', 'i', 'br'],
   ALLOWED_ATTR: ['class'],
 };
+
+/**
  * Converts Atlas/markdown-like message content to an array of React elements.
  * @param {string} content
  * @param {boolean} isUser

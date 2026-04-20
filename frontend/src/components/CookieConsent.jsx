@@ -202,4 +202,25 @@ const CookieConsent = () => {
   );
 };
 
+/**
+ * Check if the user has consented to a specific cookie category.
+ * @param {'analytics' | 'marketing' | 'essential'} category
+ * @returns {boolean}
+ */
+export function hasConsentFor(category) {
+  if (category === 'essential') return true;
+  try {
+    const consent = localStorage.getItem('cookie-consent');
+    if (consent === 'all') return true;
+    if (consent === 'essential') return false;
+    if (consent === 'custom') {
+      const prefs = JSON.parse(localStorage.getItem('cookie-preferences') || '{}');
+      return !!prefs[category];
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 export default CookieConsent;

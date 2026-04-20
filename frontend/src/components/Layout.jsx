@@ -24,16 +24,15 @@ const Layout = () => {
   const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoaded(true), 100);
-    return () => clearTimeout(timer);
+    setIsLoaded(true);
+    const main = document.getElementById('main-content');
+    if (main) main.classList.add('visible');
   }, []);
 
   useEffect(() => {
     const main = document.getElementById('main-content');
-    if (main && isLoaded) {
-      main.classList.add('visible');
-    }
-  }, [location.pathname, isLoaded]);
+    if (main) main.classList.add('visible');
+  }, [location.pathname]);
 
   const { isAuthenticated } = useAuthStore();
   const { isRefreshing } = usePullToRefresh(() => window.location.reload(), isAuthenticated);

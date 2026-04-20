@@ -6,6 +6,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import App from './App.jsx'
 import { I18nProvider } from './i18n/I18nProvider'
 import { trackFrontendError } from './lib/errorTracking'
+import './i18n/index.js'
 import './index.css'
 import { reportWebVitals } from './hooks/useWebVitals.js'
 

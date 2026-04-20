@@ -27,7 +27,7 @@ const WIDGET_CONFIG = {
   documents: { title: 'Documents', icon: CheckCircle, accentColor: 'blue' },
 }
 
-const PlanningDashboard = ({ trip = null, alerts = [], stats = {}, loading = false }) => {
+const PlanningDashboard = ({ trip = null, alerts = [], stats = {}, loading = false, safetyData = {} }) => {
   // 1. Hooks first - get widget state and helper functions
   const [checklistState, setChecklistState] = useState({
     itinerary: false,
@@ -152,7 +152,12 @@ const PlanningDashboard = ({ trip = null, alerts = [], stats = {}, loading = fal
           onToggleExpand={() => toggleExpand('safetySetup')} onHide={() => toggleHide('safetySetup')} accentColor="violet"
           draggable={true}
         >
-          <SafetyStatusCard hasContacts={false} contactCount={0} checkInScheduled={false} showHeading={true} />
+          <SafetyStatusCard
+            hasContacts={(safetyData.contacts?.length || 0) > 0}
+            contactCount={safetyData.contacts?.length || 0}
+            checkInScheduled={!!safetyData.checkInScheduled}
+            showHeading={true}
+          />
         </CollapsibleWidget>
 
         {trip?.budget && (
@@ -173,6 +178,24 @@ const PlanningDashboard = ({ trip = null, alerts = [], stats = {}, loading = fal
           draggable={true}
         >
           <AccommodationCard tripId={trip?.id} accommodation={trip?.accommodation} showHeading={false} loading={loading} />
+        </CollapsibleWidget>
+
+        <CollapsibleWidget
+          key="bookings" title="Bookings" icon={CalendarDays}
+          expanded={widgetState.bookings?.expanded} collapsible={true} hideable={true} hidden={widgetState.bookings?.hidden}
+          onToggleExpand={() => toggleExpand('bookings')} onHide={() => toggleHide('bookings')} accentColor="emerald"
+          draggable={true}
+        >
+          <BookingsCard tripId={trip?.id} bookings={trip?.bookings} showHeading={false} loading={loading} />
+        </CollapsibleWidget>
+
+        <CollapsibleWidget
+          key="documents" title="Documents" icon={CheckCircle}
+          expanded={widgetState.documents?.expanded} collapsible={true} hideable={true} hidden={widgetState.documents?.hidden}
+          onToggleExpand={() => toggleExpand('documents')} onHide={() => toggleHide('documents')} accentColor="blue"
+          draggable={true}
+        >
+          <DocumentsCard tripId={trip?.id} documents={trip?.documents} showHeading={false} loading={loading} />
         </CollapsibleWidget>
       </DashboardModuleGrid>
     </div>

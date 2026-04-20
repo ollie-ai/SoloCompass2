@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion';
-import { CreditCard, Zap, Check, X, ArrowUpRight, Download, Trash2, AlertTriangle, RotateCcw } from 'lucide-react';
+import { CreditCard, ArrowUpRight, Download, Trash2, AlertTriangle, RotateCcw } from 'lucide-react';
 import BillingHistory from '../BillingHistory';
 import TokenDashboard from '../TokenDashboard';
+import CurrentPlanCard from '../billing/CurrentPlanCard';
 
 const EASE = [0.16, 1, 0.3, 1];
 const cardClass = "glass-card p-6 rounded-3xl border border-base-300/50";
@@ -37,146 +38,63 @@ const BillingTab = ({
         <p className="text-base-content/60 font-medium text-sm">Manage your plan, billing history, and personal data archive.</p>
       </div>
 
-      <div className={cardClass}>
-        <div className="p-6 border-b border-base-300/50 flex items-center justify-between">
-          <h3 className="text-base font-black text-base-content flex items-center gap-2">
-            Active Subscription
-          </h3>
-          <div className="px-2.5 py-0.5 rounded-full bg-base-200 text-[10px] font-black text-base-content/60 uppercase tracking-tighter">
-            Billing status
-          </div>
-        </div>
-        <div className="p-5">
-          {subscriptionStatus?.isPremium ? (
-            <div className="space-y-4">
-              <div className="p-4 rounded-xl bg-gradient-to-r from-brand-vibrant/5 to-emerald-500/5 border border-brand-vibrant/10">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h4 className="font-black text-base-content">
-                      {subscriptionStatus.tier === 'guardian' ? 'Guardian' : subscriptionStatus.tier === 'navigator' ? 'Navigator' : 'Explorer'}
-                    </h4>
-                    <p className="text-xs text-base-content/60 font-medium">
-                      {subscriptionStatus.stripeStatus?.cancelAtPeriodEnd
-                        ? 'Cancels at end of billing period'
-                        : 'Active subscription'}
-                    </p>
-                  </div>
-                  <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full ${subscriptionStatus.stripeStatus?.cancelAtPeriodEnd
-                    ? 'bg-warning/20 text-warning'
-                    : 'bg-brand-vibrant/10 text-brand-vibrant'
-                    }`}>
-                    {subscriptionStatus.stripeStatus?.cancelAtPeriodEnd ? 'Cancelling' : 'Active'}
-                  </span>
-                </div>
+      <CurrentPlanCard />
 
-                {subscriptionStatus.expiresAt && (
-                  <p className="text-sm text-base-content/80 font-medium">
-                    {subscriptionStatus.stripeStatus?.cancelAtPeriodEnd
-                      ? `Access until ${new Date(subscriptionStatus.expiresAt).toLocaleDateString()}`
-                      : `Renews on ${new Date(subscriptionStatus.expiresAt).toLocaleDateString()}`
-                    }
-                  </p>
-                )}
-
-                <div className="mt-3 pt-3 border-t border-brand-vibrant/10">
-                  <h5 className="font-bold text-base-content mb-2 text-sm">Included Features</h5>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {subscriptionStatus.tier === 'navigator' ? (
-                      <>
-                        <div className="flex items-center gap-2 text-xs text-base-content/80 font-medium"><Check size={13} className="text-brand-vibrant" /> Personal Concierge</div>
-                        <div className="flex items-center gap-2 text-xs text-base-content/80 font-medium"><Check size={13} className="text-brand-vibrant" /> Advanced Safety Analytics</div>
-                        <div className="flex items-center gap-2 text-xs text-base-content/80 font-medium"><Check size={13} className="text-brand-vibrant" /> Buddy Matching with KYC</div>
-                        <div className="flex items-center gap-2 text-xs text-base-content/80 font-medium"><Check size={13} className="text-brand-vibrant" /> Bulk Itinerary Sync</div>
-                        <div className="flex items-center gap-2 text-xs text-base-content/80 font-medium"><Check size={13} className="text-brand-vibrant" /> Unlimited AI Generation</div>
-                        <div className="flex items-center gap-2 text-xs text-base-content/80 font-medium"><Check size={13} className="text-brand-vibrant" /> Real-time Safety Updates</div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="flex items-center gap-2 text-xs text-base-content/80 font-medium"><Check size={13} className="text-brand-vibrant" /> Unlimited AI Generation</div>
-                        <div className="flex items-center gap-2 text-xs text-base-content/80 font-medium"><Check size={13} className="text-brand-vibrant" /> Real-time Safety Updates</div>
-                        <div className="flex items-center gap-2 text-xs text-base-content/80 font-medium"><Check size={13} className="text-brand-vibrant" /> Solo Guide Chat</div>
-                        <div className="flex items-center gap-2 text-xs text-base-content/80 font-medium"><Check size={13} className="text-brand-vibrant" /> PDF Export</div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                {subscriptionStatus?.stripePortalUrl && (
-                  <a
-                    href={subscriptionStatus.stripePortalUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-4 py-2 rounded-xl font-bold text-sm border border-base-300 text-base-content/80 hover:bg-base-200 transition-all inline-flex items-center gap-1.5"
-                  >
-                    Manage subscription <ArrowUpRight size={14} />
-                  </a>
-                )}
-                {!subscriptionStatus?.stripeStatus?.cancelAtPeriodEnd && (
-                  <button
-                    onClick={handleCancelSubscription}
-                    disabled={loadingSubscription}
-                    className="px-4 py-2 rounded-xl font-bold text-sm border border-base-300 text-error hover:bg-error/10 disabled:opacity-50 transition-all"
-                  >
-                    {loadingSubscription ? 'Cancelling...' : 'Cancel subscription'}
-                  </button>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="p-4 rounded-xl bg-base-200 border border-base-300/50">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-9 h-9 bg-base-300 rounded-lg flex items-center justify-center text-base-content/40">
-                    <Zap size={16} />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-base-content leading-none">Explorer</h4>
-                    <p className="text-[10px] text-base-content/60 font-bold uppercase tracking-tight mt-1">Free Nomad Plan</p>
-                  </div>
-                </div>
-                <ul className="space-y-1.5 text-sm text-base-content/80">
-                  <li className="flex items-center gap-2 font-medium"><Check size={13} className="text-emerald-500" /> Create trips (up to 2 active)</li>
-                  <li className="flex items-center gap-2 font-medium"><Check size={13} className="text-emerald-500" /> 1 AI Itinerary per month</li>
-                  <li className="flex items-center gap-2 font-medium"><Check size={13} className="text-emerald-500" /> Manual check-ins + SOS</li>
-                  <li className="flex items-center gap-2 font-medium text-base-content/30 decoration-slate-200 line-through"><X size={13} /> Scheduled check-ins</li>
-                </ul>
-              </div>
-
-              <div className="grid gap-2">
-                <button
-                  onClick={() => navigate('/?upgrade=guardian')}
-                  className="p-5 rounded-xl bg-gradient-to-br from-[#10b981]/5 to-[#10b981]/10 border border-[#10b981]/20 hover:border-[#10b981]/40 transition-all text-left group relative overflow-hidden"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <h5 className="font-black text-[#10b981] text-lg">Guardian</h5>
-                      <p className="text-xs text-base-content/60 font-bold uppercase tracking-tight">£4.99/month — Most Popular</p>
-                    </div>
-                    <ArrowUpRight size={20} className="text-[#10b981]/50 group-hover:text-[#10b981] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
-                  </div>
-                  <p className="text-sm text-base-content/80 font-medium leading-tight">Unlimited AI itineraries, scheduled check-ins, Safe-Return Timer, and safe haven locator.</p>
-                </button>
-
-                <button
-                  onClick={() => navigate('/?upgrade=navigator')}
-                  className="p-5 rounded-xl bg-[#0ea5e9]/5 border border-[#0ea5e9]/20 hover:border-[#0ea5e9]/40 transition-all text-left group"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <h5 className="font-black text-[#0ea5e9] text-lg">Navigator</h5>
-                      <p className="text-xs text-base-content/60 font-bold uppercase tracking-tight">£9.99/month — Founding Price</p>
-                    </div>
-                    <ArrowUpRight size={20} className="text-[#0ea5e9]/50 group-hover:text-[#0ea5e9] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
-                  </div>
-                  <p className="text-sm text-base-content/80 font-medium leading-tight">Everything in Guardian + AI destination chat, AI safety advice, and priority support.</p>
-                </button>
-              </div>
-            </div>
+      {subscriptionStatus?.isPremium && (
+        <div className="flex gap-3">
+          {subscriptionStatus?.stripePortalUrl && (
+            <a
+              href={subscriptionStatus.stripePortalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2 rounded-xl font-bold text-sm border border-base-300 text-base-content/80 hover:bg-base-200 transition-all inline-flex items-center gap-1.5"
+            >
+              Manage subscription <ArrowUpRight size={14} />
+            </a>
+          )}
+          {!subscriptionStatus?.stripeStatus?.cancelAtPeriodEnd && (
+            <button
+              onClick={handleCancelSubscription}
+              disabled={loadingSubscription}
+              className="px-4 py-2 rounded-xl font-bold text-sm border border-base-300 text-error hover:bg-error/10 disabled:opacity-50 transition-all"
+            >
+              {loadingSubscription ? 'Cancelling...' : 'Cancel subscription'}
+            </button>
           )}
         </div>
-      </div>
+      )}
+
+      {!subscriptionStatus?.isPremium && (
+        <div className="grid gap-2">
+          <button
+            onClick={() => navigate('/?upgrade=guardian')}
+            className="p-5 rounded-xl bg-gradient-to-br from-[#10b981]/5 to-[#10b981]/10 border border-[#10b981]/20 hover:border-[#10b981]/40 transition-all text-left group relative overflow-hidden"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h5 className="font-black text-[#10b981] text-lg">Guardian</h5>
+                <p className="text-xs text-base-content/60 font-bold uppercase tracking-tight">£4.99/month — Most Popular</p>
+              </div>
+              <ArrowUpRight size={20} className="text-[#10b981]/50 group-hover:text-[#10b981] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
+            </div>
+            <p className="text-sm text-base-content/80 font-medium leading-tight">Unlimited AI itineraries, scheduled check-ins, Safe-Return Timer, and safe haven locator.</p>
+          </button>
+
+          <button
+            onClick={() => navigate('/?upgrade=navigator')}
+            className="p-5 rounded-xl bg-[#0ea5e9]/5 border border-[#0ea5e9]/20 hover:border-[#0ea5e9]/40 transition-all text-left group"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h5 className="font-black text-[#0ea5e9] text-lg">Navigator</h5>
+                <p className="text-xs text-base-content/60 font-bold uppercase tracking-tight">£9.99/month — Founding Price</p>
+              </div>
+              <ArrowUpRight size={20} className="text-[#0ea5e9]/50 group-hover:text-[#0ea5e9] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
+            </div>
+            <p className="text-sm text-base-content/80 font-medium leading-tight">Everything in Guardian + AI destination chat, AI safety advice, and priority support.</p>
+          </button>
+        </div>
+      )}
 
       <BillingHistory />
 

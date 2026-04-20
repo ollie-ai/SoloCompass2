@@ -251,7 +251,7 @@ const Dashboard = () => {
       case 'no_trips':
         return <NoTripsDashboard />;
       case 'planning':
-        return <PlanningDashboard trip={trip} alerts={alerts} stats={stats} loading={tripDataLoading} />;
+        return <PlanningDashboard trip={trip} alerts={alerts} stats={stats} loading={tripDataLoading} safetyData={safetyData} />;
       case 'upcoming':
         return <UpcomingDashboard trip={trip} alerts={alerts} stats={stats} safetyData={safetyData} timeWeather={timeWeather} loading={tripDataLoading} />;
       case 'live_trip':

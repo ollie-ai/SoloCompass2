@@ -225,6 +225,15 @@ const LiveTripDashboard = ({ trip = null, alerts = [], stats = {}, safetyData = 
           </CollapsibleWidget>
         )}
 
+        <CollapsibleWidget
+          key="documents" title="Documents" icon={CheckCircle}
+          expanded={widgetState.documents?.expanded} collapsible={true} hideable={true} hidden={widgetState.documents?.hidden}
+          onToggleExpand={() => toggleExpand('documents')} onHide={() => toggleHide('documents')} accentColor="blue"
+          draggable={true}
+        >
+          <DocumentsCard tripId={trip?.id} documents={trip?.documents} showHeading={false} loading={loading} />
+        </CollapsibleWidget>
+
         {trip?.budget && (
           <CollapsibleWidget
             key="budget" title="Budget" icon={Wallet}

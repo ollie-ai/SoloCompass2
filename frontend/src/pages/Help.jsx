@@ -187,6 +187,46 @@ const Help = () => {
       })).filter(section => section.questions.length > 0)
     : displayFaqs;
 
+  const defaultGuides = [
+    {
+      id: 'guide-1',
+      category: 'Getting Started',
+      title: 'Create your first trip',
+      duration: '2 min',
+      steps: ['Click "New Trip" from the dashboard', 'Enter your destination and dates', 'Let AI generate an itinerary', 'Customise and save your plan'],
+    },
+    {
+      id: 'guide-2',
+      category: 'Safety',
+      title: 'Set up safety check-ins',
+      duration: '3 min',
+      steps: ['Open your trip and go to Safety', 'Add emergency contacts', 'Choose a check-in interval', 'Enable automatic escalation'],
+    },
+    {
+      id: 'guide-3',
+      category: 'Planning',
+      title: 'Using Atlas AI assistant',
+      duration: '2 min',
+      steps: ['Click the Atlas bubble on any page', 'Ask about destinations, safety, or planning', 'Atlas remembers your trip context', 'Use quick chips for common questions'],
+    },
+    {
+      id: 'guide-4',
+      category: 'Budgeting',
+      title: 'Track your trip budget',
+      duration: '2 min',
+      steps: ['Open your trip and tap Budget', 'Set a total budget and currency', 'Log expenses as you travel', 'View spending breakdowns by category'],
+    },
+  ];
+
+  const defaultTutorials = [
+    { id: 'tut-1', title: 'Getting started with SoloCompass', duration: '4 min', url: '#' },
+    { id: 'tut-2', title: 'Planning a safe solo trip', duration: '6 min', url: '#' },
+    { id: 'tut-3', title: 'Using the check-in system', duration: '3 min', url: '#' },
+  ];
+
+  const guides = defaultGuides;
+  const tutorials = defaultTutorials;
+
   const normalizedSearch = searchQuery.toLowerCase();
   const filteredGuides = normalizedSearch
     ? guides.filter((guide) => `${guide.title} ${guide.category} ${(guide.steps || []).join(' ')}`.toLowerCase().includes(normalizedSearch))

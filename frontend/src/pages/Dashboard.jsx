@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../stores/authStore';
 import Skeleton from '../components/Skeleton';
@@ -28,6 +28,7 @@ const Dashboard = () => {
   // Use stable selectors to prevent unnecessary re-renders
   const user = useAuthStore(selectUser);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(true);
   const [verifyingPayment, setVerifyingPayment] = useState(false);
@@ -54,6 +55,13 @@ const Dashboard = () => {
   
   // Ref to store interval ID for cleanup
   const paymentIntervalRef = useRef(null);
+
+  useEffect(() => {
+    if (searchParams.get('atlas') === '1') {
+      window.dispatchEvent(new CustomEvent('atlas:open'));
+      setSearchParams(prev => { prev.delete('atlas'); return prev; }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // Payment verification handler with proper cleanup
   const handlePaymentVerification = useCallback(async () => {

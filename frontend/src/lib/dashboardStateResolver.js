@@ -69,11 +69,11 @@ export const READINESS_THRESHOLDS = {
 }
 
 export function getReadinessStatus(percentage) {
-  if (percentage >= READINESS_THRESHOLDS.ready) return 'ready'
-  if (percentage >= READINESS_THRESHOLDS.needsAttention) return 'needs_attention'
-  if (percentage >= READINESS_THRESHOLDS.moderate) return 'moderate'
-  if (percentage >= READINESS_THRESHOLDS.critical) return 'critical'
-  return 'critical_blocker'
+  if (percentage >= READINESS_THRESHOLDS.ready) return 'Ready'
+  if (percentage >= READINESS_THRESHOLDS.needsAttention) return 'In progress'
+  if (percentage >= READINESS_THRESHOLDS.moderate) return 'Needs attention'
+  if (percentage >= READINESS_THRESHOLDS.critical) return 'Needs attention'
+  return 'Critical blocker'
 }
 
 export function computeReadiness(checklistState, tripData = {}) {

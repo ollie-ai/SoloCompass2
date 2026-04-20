@@ -3,7 +3,26 @@ import PropTypes from 'prop-types';
 import { motion } from 'framer-motion'
 import { CheckSquare, Square, CheckCircle, ListChecks } from 'lucide-react'
 
-const ChecklistCard = memo(function ChecklistCard({ title, items = [], onToggle, className = "" }) {
+const ChecklistCard = memo(function ChecklistCard({ title, items = [], onToggle, loading = false, className = "" }) {
+  if (loading) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`dashboard-widget ${className}`}
+      >
+        <div className="flex items-center gap-2 mb-4">
+          <CheckSquare size={18} className="text-brand-vibrant" />
+          <h3 className="text-base font-bold text-base-content">{title}</h3>
+        </div>
+        <div className="space-y-2">
+          {[1, 2, 3, 4].map(n => (
+            <div key={n} className="h-9 rounded-lg bg-base-200 animate-pulse" />
+          ))}
+        </div>
+      </motion.div>
+    )
+  }
   if (!items?.length) return null
   
   const doneCount = items.filter(i => i.done).length
@@ -77,11 +96,13 @@ ChecklistCard.propTypes = {
   title: PropTypes.string.isRequired,
   items: PropTypes.array,
   onToggle: PropTypes.func,
+  loading: PropTypes.bool,
   className: PropTypes.string,
 };
 
 ChecklistCard.defaultProps = {
   items: [],
+  loading: false,
   className: "",
 };
 

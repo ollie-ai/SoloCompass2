@@ -176,7 +176,7 @@ const LocalEmergencyCard = memo(function LocalEmergencyCard({
       <div className="dashboard-widget-header">
         <div className="dashboard-widget-title">
           <div className="w-8 h-8 rounded-lg bg-error/10 flex items-center justify-center">
-            <Phone size={16} weight="duotone" className="text-error" />
+            <Phone size={16} className="text-error" />
           </div>
           <h3 className="text-base font-bold text-base-content">Local emergency numbers</h3>
         </div>
